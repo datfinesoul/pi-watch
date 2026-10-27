@@ -32,12 +32,15 @@ pub struct Update {
     pub pid: u32,
     pub kitty_window_id: Option<String>,
     pub kitty_listen_on: Option<String>,
+    pub kitty_focused: Option<bool>,
     pub status: Status,
 }
 pub struct Session {
     pub update: Update,
     pub seen: Instant,
     pub changed: Instant,
+    pub completed: Option<Instant>,
+    pub waiting: bool,
 }
 impl Session {
     pub fn status(&self, now: Instant) -> Status {
@@ -62,16 +65,40 @@ fn apply(sessions: &mut BTreeMap<String, Session>, update: Update, now: Instant)
         .get(&update.id)
         .filter(|s| s.status(now) == update.status)
         .map_or(now, |s| s.changed);
+    let previous = sessions.get(&update.id);
+    let completed = if previous.is_some_and(|s| s.status(now) == Status::Working)
+        && update.status == Status::Idle
+    {
+        Some(now)
+    } else {
+        previous.and_then(|s| s.completed)
+    };
+    let waiting = update.status == Status::Idle
+        && update.kitty_focused != Some(true)
+        && previous.is_some_and(|s| {
+            s.status(now) != Status::Disconnected && (s.waiting || s.status(now) == Status::Working)
+        });
     sessions.insert(
         update.id.clone(),
         Session {
             update,
             seen: now,
             changed,
+            completed,
+            waiting,
         },
     );
     sessions.retain(|_, s| now.duration_since(s.seen) < Duration::from_secs(300));
 }
+pub fn acknowledge(sessions: &Sessions, id: &str, completed: Option<Instant>) {
+    if let Ok(mut sessions) = sessions.lock()
+        && let Some(session) = sessions.get_mut(id)
+        && session.completed == completed
+    {
+        session.waiting = false;
+    }
+}
+
 fn decode(bytes: &[u8]) -> Option<Update> {
     let u: Update = serde_json::from_slice(bytes).ok()?;
     if u.version != 1
@@ -162,6 +189,7 @@ mod tests {
             pid: 1,
             kitty_window_id: Some("100".into()),
             kitty_listen_on: Some("unix:/tmp/kitty.sock".into()),
+            kitty_focused: None,
             status,
         }
     }
@@ -186,6 +214,132 @@ mod tests {
             now + Duration::from_secs(22),
         );
         assert_eq!(sessions["session"].changed, now + Duration::from_secs(22));
+    }
+    #[test]
+    fn completion_requires_connected_active_to_idle_transition() {
+        let mut sessions = BTreeMap::new();
+        let now = Instant::now();
+        apply(&mut sessions, update(Status::Idle), now);
+        assert_eq!(sessions["session"].completed, None);
+        apply(&mut sessions, update(Status::Working), now);
+        let finished = now + Duration::from_secs(1);
+        apply(&mut sessions, update(Status::Idle), finished);
+        assert_eq!(sessions["session"].completed, Some(finished));
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(2),
+        );
+        assert_eq!(sessions["session"].completed, Some(finished));
+        apply(
+            &mut sessions,
+            update(Status::Working),
+            now + Duration::from_secs(3),
+        );
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(30),
+        );
+        assert_eq!(sessions["session"].completed, Some(finished));
+        let mut reload = update(Status::Idle);
+        reload.id = "reload".into();
+        apply(&mut sessions, reload, now + Duration::from_secs(31));
+        assert_eq!(sessions["reload"].completed, None);
+    }
+    #[test]
+    fn waiting_persists_until_focus_and_does_not_repeat_on_heartbeats() {
+        let mut sessions = BTreeMap::new();
+        let now = Instant::now();
+        apply(&mut sessions, update(Status::Idle), now);
+        assert!(!sessions["session"].waiting);
+        apply(&mut sessions, update(Status::Working), now);
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(1),
+        );
+        assert!(sessions["session"].waiting);
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(2),
+        );
+        assert!(sessions["session"].waiting);
+        let mut focused = update(Status::Idle);
+        focused.kitty_focused = Some(true);
+        apply(&mut sessions, focused, now + Duration::from_secs(3));
+        assert!(!sessions["session"].waiting);
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(4),
+        );
+        assert!(!sessions["session"].waiting);
+    }
+    #[test]
+    fn waiting_resets_for_active_disconnect_reload_and_stale_reconnect() {
+        let now = Instant::now();
+        for status in [Status::Working, Status::Disconnected] {
+            let mut sessions = BTreeMap::new();
+            apply(&mut sessions, update(Status::Working), now);
+            apply(&mut sessions, update(Status::Idle), now);
+            assert!(sessions["session"].waiting);
+            apply(&mut sessions, update(status), now);
+            assert!(!sessions["session"].waiting);
+        }
+        let mut sessions = BTreeMap::new();
+        apply(&mut sessions, update(Status::Working), now);
+        apply(&mut sessions, update(Status::Idle), now);
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(20),
+        );
+        assert!(!sessions["session"].waiting);
+        apply(
+            &mut sessions,
+            update(Status::Working),
+            now + Duration::from_secs(21),
+        );
+        let mut focused = update(Status::Idle);
+        focused.kitty_focused = Some(true);
+        apply(&mut sessions, focused, now + Duration::from_secs(22));
+        assert!(!sessions["session"].waiting);
+        apply(
+            &mut sessions,
+            update(Status::Working),
+            now + Duration::from_secs(23),
+        );
+        apply(
+            &mut sessions,
+            update(Status::Idle),
+            now + Duration::from_secs(24),
+        );
+        let mut reload = update(Status::Idle);
+        reload.id = "reload".into();
+        apply(&mut sessions, reload, now + Duration::from_secs(25));
+        assert!(!sessions["reload"].waiting);
+    }
+    #[test]
+    fn navigation_acknowledges_only_the_selected_completion() {
+        let sessions = Sessions::default();
+        let now = Instant::now();
+        {
+            let mut state = sessions.lock().unwrap();
+            apply(&mut state, update(Status::Working), now);
+            apply(
+                &mut state,
+                update(Status::Idle),
+                now + Duration::from_secs(1),
+            );
+        }
+        acknowledge(&sessions, "session", Some(now));
+        assert!(sessions.lock().unwrap()["session"].waiting);
+        acknowledge(&sessions, "other", Some(now + Duration::from_secs(1)));
+        assert!(sessions.lock().unwrap()["session"].waiting);
+        acknowledge(&sessions, "session", Some(now + Duration::from_secs(1)));
+        assert!(!sessions.lock().unwrap()["session"].waiting);
     }
     #[test]
     fn reload_replaces_previous_reporting_instance() {

@@ -35,7 +35,7 @@ fn bounded(command: &mut Command) -> io::Result<()> {
     }
 }
 
-pub fn focus(target: Target) {
+pub fn focus(target: Target, on_success: impl FnOnce() + Send + 'static) {
     // Never block the AppKit event loop, and never invoke a shell.
     thread::spawn(move || {
         let kitty = [
@@ -62,8 +62,9 @@ pub fn focus(target: Target) {
                 "tell application id \"net.kovidgoyal.kitty\" to activate",
             ]))
         })();
-        if let Err(error) = result {
-            eprintln!("Pi Watch could not focus Kitty pane: {error}");
+        match result {
+            Ok(()) => on_success(),
+            Err(error) => eprintln!("Pi Watch could not focus Kitty pane: {error}"),
         }
     });
 }

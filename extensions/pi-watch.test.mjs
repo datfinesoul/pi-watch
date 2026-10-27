@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import extension, { projectLabel, paneTitle } from "./pi-watch.ts";
+import extension, { projectLabel, paneTitle, paneMetadata } from "./pi-watch.ts";
 
 assert.equal(projectLabel("/work/super/repo/src", "/work/super/repo", "/work/super", false), "↳/super/repo/src");
 assert.equal(projectLabel("/work/super", "/work/super", "", true), "↳/super");
@@ -11,6 +11,17 @@ assert.equal(projectLabel("/work/plain", "", "", false), "plain");
 assert.equal(paneTitle(JSON.stringify([{ tabs: [{ windows: [{ id: 123, title: "My pane", env: { ignored: true } }] }] }]), "123"), "My pane");
 assert.equal(paneTitle("invalid", "123"), null);
 assert.equal(paneTitle("[]", "123"), null);
+
+const focusListing = (osFocused, tabFocused, paneFocused) => JSON.stringify([
+  { is_focused: osFocused, tabs: [{ is_focused: tabFocused, windows: [{ id: 123, title: "Pane", is_focused: paneFocused }] }] },
+]);
+assert.equal(paneMetadata(focusListing(true, true, true), "123").focused, true);
+assert.equal(paneMetadata(focusListing(false, true, true), "123").focused, false);
+assert.equal(paneMetadata(focusListing(true, false, true), "123").focused, false);
+assert.equal(paneMetadata(focusListing(true, true, false), "123").focused, false);
+assert.equal(paneMetadata(focusListing(true, true, undefined), "123").focused, null);
+assert.deepEqual(paneMetadata("invalid", "123"), { title: null, focused: null });
+assert.equal(paneMetadata(focusListing(true, true, true), "999").focused, null);
 
 const pause = () => new Promise(resolve => setTimeout(resolve, 80));
 
@@ -51,7 +62,8 @@ await (async () => {
     assert.equal(reports[0].kitty_window_id, "123");
     assert.equal(reports[0].kitty_listen_on, "unix:/tmp/kitty-test.sock");
     assert.equal(reports[0].cwd, "/tmp/project");
-    assert.deepEqual(Object.keys(reports[0]).sort(), ["version", "id", "cwd", "pid", "kitty_window_id", "kitty_listen_on", "project_label", "kitty_title", "status"].sort());
+    assert.equal(reports[0].kitty_focused, null); // Lifecycle reports never reuse cached focus.
+    assert.deepEqual(Object.keys(reports[0]).sort(), ["version", "id", "cwd", "pid", "kitty_window_id", "kitty_listen_on", "kitty_focused", "project_label", "kitty_title", "status"].sort());
     assert.equal(new Set(reports.map(r => r.id)).size, 1);
     assert.equal(handlers.has("agent_end"), false);
   } finally {

@@ -1,0 +1,24 @@
+.DEFAULT_GOAL := help
+
+.PHONY: help build open stop restart
+
+help:
+	@printf '%s\n' 'make build    Build and sign the app' 'make open     Open the built app' 'make stop     Stop the running app' 'make restart  Rebuild, stop, and reopen the app'
+
+build:
+	sh scripts/bundle.sh
+
+open:
+	open "$(CURDIR)/dist/Pi Watch.app"
+
+stop:
+	@pkill -x pi-watch || test $$? -eq 1
+	@for attempt in 1 2 3 4 5 6 7 8 9 10; do \
+		if ! pgrep -x pi-watch >/dev/null; then exit 0; fi; \
+		sleep 0.2; \
+	done; \
+	printf '%s\n' 'Pi Watch did not stop within two seconds.' >&2; exit 1
+
+restart: build
+	$(MAKE) stop
+	$(MAKE) open
