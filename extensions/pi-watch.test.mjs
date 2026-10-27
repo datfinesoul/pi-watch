@@ -11,6 +11,8 @@ await (async () => {
   const home = await mkdtemp("/tmp/pw-");
   const oldHome = process.env.HOME;
   const oldPane = process.env.KITTY_WINDOW_ID;
+  const oldEndpoint = process.env.KITTY_LISTEN_ON;
+  process.env.KITTY_LISTEN_ON = "unix:/tmp/kitty-test.sock";
   process.env.HOME = home;
   process.env.KITTY_WINDOW_ID = "123";
   const handlers = new Map();
@@ -39,8 +41,9 @@ await (async () => {
     await pause();
     assert.deepEqual(reports.map(r => r.status), ["working", "idle", "disconnected"]);
     assert.equal(reports[0].kitty_window_id, "123");
+    assert.equal(reports[0].kitty_listen_on, "unix:/tmp/kitty-test.sock");
     assert.equal(reports[0].cwd, "/tmp/project");
-    assert.deepEqual(Object.keys(reports[0]).sort(), ["version", "id", "cwd", "pid", "kitty_window_id", "status"].sort());
+    assert.deepEqual(Object.keys(reports[0]).sort(), ["version", "id", "cwd", "pid", "kitty_window_id", "kitty_listen_on", "status"].sort());
     assert.equal(new Set(reports.map(r => r.id)).size, 1);
     assert.equal(handlers.has("agent_end"), false);
   } finally {
@@ -48,6 +51,7 @@ await (async () => {
     for (const socket of peers) socket.destroy();
     if (server.listening) server.close();
     if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;
+    if (oldEndpoint === undefined) delete process.env.KITTY_LISTEN_ON; else process.env.KITTY_LISTEN_ON = oldEndpoint;
     if (oldPane === undefined) delete process.env.KITTY_WINDOW_ID; else process.env.KITTY_WINDOW_ID = oldPane;
     await rm(home, { recursive: true, force: true });
   }

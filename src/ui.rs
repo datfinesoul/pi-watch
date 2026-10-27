@@ -1,3 +1,4 @@
+use crate::focus::{self, Target};
 use crate::monitor::{Sessions, Status};
 use objc2::{
     DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, rc::Retained, sel,
@@ -6,11 +7,12 @@ use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
 };
 use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer};
-use std::time::{Duration, Instant};
+use std::{cell::RefCell, time::Instant};
 
 pub struct State {
     sessions: Sessions,
     item: Retained<NSStatusItem>,
+    targets: RefCell<Vec<Target>>,
 }
 define_class!(
     #[unsafe(super(NSObject))]
@@ -21,6 +23,12 @@ define_class!(
     impl Controller {
         #[unsafe(method(refresh:))]
         fn refresh(&self, _timer: &NSTimer) { self.render(); }
+        #[unsafe(method(focus:))]
+        fn focus(&self, sender: &NSMenuItem) {
+            if let Some(target) = self.ivars().targets.borrow().get(sender.tag() as usize).cloned() {
+                focus::focus(target);
+            }
+        }
         #[unsafe(method(quit:))]
         fn quit(&self, _sender: &NSObject) { NSApplication::sharedApplication(self.mtm()).terminate(None); }
     }
@@ -34,7 +42,7 @@ impl Controller {
         let sessions = state.sessions.lock().expect("session state poisoned");
         let mut rows: Vec<_> = sessions
             .values()
-            .filter(|s| now.duration_since(s.seen) < Duration::from_secs(300))
+            .filter(|s| s.status(now) != Status::Disconnected)
             .collect();
         rows.sort_by(|a, b| {
             a.update
@@ -47,11 +55,16 @@ impl Controller {
             .filter(|s| s.status(now) == Status::Working)
             .count();
         if let Some(button) = state.item.button(mtm) {
-            button.setTitle(&NSString::from_str(&format!("Pi {working}/{}", rows.len())));
+            button.setTitle(&NSString::from_str(&format!(
+                "π ● {working}  ○ {}",
+                rows.len() - working
+            )));
         }
+        let mut targets = state.targets.borrow_mut();
+        targets.clear();
         let mut project = String::new();
         if rows.is_empty() {
-            add_label(&menu, "No reporting Pi sessions", mtm);
+            add_label(&menu, "No connected Pi sessions", mtm);
             add_label(&menu, "Load extensions/pi-watch.ts in Pi", mtm);
         }
         for session in rows {
@@ -64,7 +77,7 @@ impl Controller {
             }
             let status = session.status(now);
             let (dot, name) = match status {
-                Status::Working => ("●", "Working"),
+                Status::Working => ("●", "Active"),
                 Status::Idle => ("○", "Idle"),
                 Status::Disconnected => ("–", "Disconnected"),
             };
@@ -79,7 +92,7 @@ impl Controller {
                 .kitty_window_id
                 .as_deref()
                 .unwrap_or("unknown");
-            add_label(
+            let item = add_label(
                 &menu,
                 &format!(
                     "{dot} {name} · {}m {:02}s · pane {pane} · PID {}",
@@ -89,9 +102,30 @@ impl Controller {
                 ),
                 mtm,
             );
+            if status != Status::Disconnected
+                && let (Some(endpoint), Some(pane)) = (
+                    &session.update.kitty_listen_on,
+                    &session.update.kitty_window_id,
+                )
+            {
+                item.setTag(targets.len() as isize);
+                targets.push(Target {
+                    endpoint: endpoint.clone(),
+                    pane: pane.clone(),
+                });
+                unsafe {
+                    item.setAction(Some(sel!(focus:)));
+                    item.setTarget(Some(self));
+                }
+                item.setEnabled(true);
+            }
         }
         menu.addItem(&NSMenuItem::separatorItem(mtm));
-        add_label(&menu, "Pane focus unavailable in this version", mtm);
+        add_label(
+            &menu,
+            "Click a connected session to focus its Kitty pane",
+            mtm,
+        );
         let quit = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
                 NSMenuItem::alloc(mtm),
@@ -107,7 +141,7 @@ impl Controller {
         state.item.setMenu(Some(&menu));
     }
 }
-fn add_label(menu: &NSMenu, text: &str, mtm: MainThreadMarker) {
+fn add_label(menu: &NSMenu, text: &str, mtm: MainThreadMarker) -> Retained<NSMenuItem> {
     let clean: String = text.chars().filter(|c| !c.is_control()).collect();
     let item = unsafe {
         NSMenuItem::initWithTitle_action_keyEquivalent(
@@ -119,13 +153,18 @@ fn add_label(menu: &NSMenu, text: &str, mtm: MainThreadMarker) {
     };
     item.setEnabled(false);
     menu.addItem(&item);
+    item
 }
 pub fn run(sessions: Sessions) {
     let mtm = MainThreadMarker::new().expect("UI must run on main thread");
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
     let item = NSStatusBar::systemStatusBar().statusItemWithLength(-1.0);
-    let controller = Controller::alloc(mtm).set_ivars(State { sessions, item });
+    let controller = Controller::alloc(mtm).set_ivars(State {
+        sessions,
+        item,
+        targets: RefCell::new(Vec::new()),
+    });
     let controller: Retained<Controller> = unsafe { msg_send![super(controller), init] };
     controller.render();
     let _timer = unsafe {

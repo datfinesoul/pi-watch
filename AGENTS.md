@@ -14,6 +14,14 @@ This project will contain a native macOS menu bar app, preferably implemented in
 - Existing Pi processes must load the reporting extension before accurate status is available. Do not install extensions globally without explicit user authorization.
 - This is a separate project from `note`; do not assume its features, architecture, or dependencies apply here.
 
+## Pane-focus handoff
+
+The user configured Kitty remote control and authorized pane-focus implementation. Explicit socket-based listing and focus commands succeeded. Do not change Kitty configuration automatically.
+
+The proposed setup uses `allow_remote_control socket-only`. Prefer a socket inside a user-owned directory under the home directory with mode `0700`, rather than shared `/tmp`. The suggested directory is `~/.local/run/kitty/`. The final socket endpoint and Kitty configuration remain unverified. Directory permissions protect against other ordinary local users, not processes running as the same user. Kitty remote control permits more than pane focusing.
+
+The reporting extension sends `KITTY_WINDOW_ID` and `KITTY_LISTEN_ON`. The app uses that endpoint to focus the selected pane, then activates Kitty on macOS. Sessions without either value remain disabled. Reload existing reporting extensions after this update. The Kitty control socket is separate from Pi Watch's `events.sock` reporting socket. Verify pane switching and macOS activation manually in a desktop session.
+
 ## Development
 
 - Follow the repository's established conventions as they emerge. Prefer simple, idiomatic Rust and focused changes.

@@ -21,7 +21,8 @@ export default function (pi: ExtensionAPI) {
     socket.on("close", () => sockets.delete(socket));
     socket.on("connect", () => socket.end(JSON.stringify({
       version: 1, id, cwd, pid: process.pid,
-      kitty_window_id: process.env.KITTY_WINDOW_ID ?? null, status,
+      kitty_window_id: process.env.KITTY_WINDOW_ID ?? null,
+      kitty_listen_on: process.env.KITTY_LISTEN_ON ?? null, status,
     })));
     socket.unref();
   }

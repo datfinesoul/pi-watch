@@ -29,6 +29,7 @@ pub struct Update {
     pub cwd: String,
     pub pid: u32,
     pub kitty_window_id: Option<String>,
+    pub kitty_listen_on: Option<String>,
     pub status: Status,
 }
 pub struct Session {
@@ -46,7 +47,12 @@ impl Session {
     }
 }
 fn apply(sessions: &mut BTreeMap<String, Session>, update: Update, now: Instant) {
-    sessions.retain(|_, s| now.duration_since(s.seen) < Duration::from_secs(300));
+    // A Pi process has one current reporting runtime. Reloads and session
+    // replacements create a new instance ID, but must replace its previous row.
+    sessions.retain(|id, s| {
+        now.duration_since(s.seen) < Duration::from_secs(300)
+            && (s.update.pid != update.pid || *id == update.id)
+    });
     if sessions.len() >= 512 && !sessions.contains_key(&update.id) {
         return;
     }
@@ -72,6 +78,9 @@ fn decode(bytes: &[u8]) -> Option<Update> {
         || u.cwd.len() > 4096
         || !u.cwd.starts_with('/')
         || u.pid == 0
+        || u.kitty_listen_on.as_ref().is_some_and(|s| {
+            !s.starts_with("unix:/") || s.len() > 4096 || s.chars().any(char::is_control)
+        })
         || u.kitty_window_id
             .as_ref()
             .is_some_and(|s| s.is_empty() || s.len() > 20 || !s.bytes().all(|b| b.is_ascii_digit()))
@@ -146,6 +155,7 @@ mod tests {
             cwd: "/tmp/project".into(),
             pid: 1,
             kitty_window_id: Some("100".into()),
+            kitty_listen_on: Some("unix:/tmp/kitty.sock".into()),
             status,
         }
     }
@@ -170,6 +180,39 @@ mod tests {
             now + Duration::from_secs(22),
         );
         assert_eq!(sessions["session"].changed, now + Duration::from_secs(22));
+    }
+    #[test]
+    fn reload_replaces_previous_reporting_instance() {
+        let mut sessions = BTreeMap::new();
+        let now = Instant::now();
+        apply(&mut sessions, update(Status::Idle), now);
+        let mut replacement = update(Status::Working);
+        replacement.id = "reloaded".into();
+        apply(&mut sessions, replacement, now + Duration::from_secs(1));
+        assert_eq!(sessions.len(), 1);
+        assert!(sessions.contains_key("reloaded"));
+        let mut other_process = update(Status::Idle);
+        other_process.pid = 2;
+        apply(&mut sessions, other_process, now + Duration::from_secs(2));
+        assert_eq!(sessions.len(), 2);
+    }
+    #[test]
+    fn explicit_shutdown_is_immediately_disconnected() {
+        let mut sessions = BTreeMap::new();
+        let now = Instant::now();
+        apply(&mut sessions, update(Status::Disconnected), now);
+        assert_eq!(sessions["session"].status(now), Status::Disconnected);
+    }
+    #[test]
+    fn accepts_only_local_kitty_endpoints() {
+        let frame = |endpoint: &str| {
+            format!(
+                r#"{{"version":1,"id":"a","cwd":"/tmp","pid":1,"status":"idle","kitty_listen_on":"{endpoint}"}}"#
+            )
+        };
+        assert!(decode(frame("unix:/tmp/kitty.sock").as_bytes()).is_some());
+        assert!(decode(frame("tcp:localhost:1234").as_bytes()).is_none());
+        assert!(decode(frame("unix:relative.sock").as_bytes()).is_none());
     }
     #[test]
     fn rejects_unknown_fields_and_versions() {
