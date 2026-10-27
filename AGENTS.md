@@ -1,16 +1,16 @@
 # Pi Watch
 
-This project will contain a native macOS menu bar app, preferably implemented in Rust, that shows the status of active Pi sessions across Kitty panes. Keep implementation, tooling, and documentation focused on that purpose; this is not a CLI or a terminal/session manager.
+This project contains a Rust and AppKit macOS menu bar app and a Pi reporting extension. The app shows connected Pi sessions across Kitty panes. Keep implementation, tooling, and documentation focused on that purpose. This is not a CLI or a terminal/session manager. The control plane classifies this module as experimental and exempts it from the shared module standard.
 
 ## Product direction
 
 - Prefer native AppKit UI through `objc2` and `objc2-app-kit`, rather than a webview or browser server.
-- Start with a session list grouped by project, working/idle/disconnected status, elapsed time in the current state, and click-to-focus for the corresponding Kitty pane.
+- Group connected sessions by project. Show active or idle status, elapsed time in the current state, and Kitty pane titles. Hide disconnected sessions from the list and counts. Keep click-to-focus for the corresponding Kitty pane.
 - Use a small Pi extension to report session identity, working directory, lifecycle events, and Kitty window identity to the app through a local Unix socket. Do not infer semantic status from CPU usage or transcript modification times.
-- Only show needs-attention states when reliable Pi events support them. Mark stale or lost connections explicitly rather than presenting old status as current.
+- Use `!` for unseen active-to-idle transitions, not inferred task success or approval requests. Clear it after successful navigation or reported Kitty focus. Exclude stale or disconnected sessions from current counts. Popovers remain disabled by default behind the Cargo feature `popovers`.
 - Keep telemetry minimal: do not collect transcripts, prompts, tool arguments, credentials, or model responses. Do not make model calls or expose shell control.
 - Use private local IPC with restricted filesystem permissions. No browser server or network listener is needed.
-- Verify Kitty remote-control availability and permissions before implementing click-to-focus. Do not change Kitty configuration automatically.
+- Use each reporting session's Kitty socket endpoint and pane ID for navigation. Check remote-control availability and permissions when setup changes. Do not change Kitty configuration automatically.
 - Existing Pi processes must load the reporting extension before accurate status is available. Do not install extensions globally without explicit user authorization.
 - This is a separate project from `note`; do not assume its features, architecture, or dependencies apply here.
 
@@ -18,15 +18,16 @@ This project will contain a native macOS menu bar app, preferably implemented in
 
 The user configured Kitty remote control and authorized pane-focus implementation. Explicit socket-based listing and focus commands succeeded. Do not change Kitty configuration automatically.
 
-The proposed setup uses `allow_remote_control socket-only`. Prefer a socket inside a user-owned directory under the home directory with mode `0700`, rather than shared `/tmp`. The suggested directory is `~/.local/run/kitty/`. The final socket endpoint and Kitty configuration remain unverified. Directory permissions protect against other ordinary local users, not processes running as the same user. Kitty remote control permits more than pane focusing.
+The proposed Kitty setting is `allow_remote_control socket-only`. The inherited Unix socket endpoint was tested inside the user-owned `~/.local/run/kitty/` directory with mode `0700`. Do not assume the same endpoint after a Kitty restart. The Kitty configuration file itself was not audited. Directory permissions protect against other ordinary local users, not processes running as the same user. Kitty remote control permits more than pane focusing.
 
-The reporting extension sends `KITTY_WINDOW_ID` and `KITTY_LISTEN_ON`. The app uses that endpoint to focus the selected pane, then activates Kitty on macOS. Sessions without either value remain disabled. Reload existing reporting extensions after this update. The Kitty control socket is separate from Pi Watch's `events.sock` reporting socket. Verify pane switching and macOS activation manually in a desktop session.
+The reporting extension sends `KITTY_WINDOW_ID`, `KITTY_LISTEN_ON`, pane title, and focus state. The app uses that endpoint to focus the selected pane, then activates Kitty on macOS. Sessions without either identity value remain disabled. The user reported successful pane switching. Manually check navigation and activation after related changes. The Kitty control socket is separate from Pi Watch's `events.sock` reporting socket.
 
 ## Development
 
 - Follow the repository's established conventions as they emerge. Prefer simple, idiomatic Rust and focused changes.
 - Keep shared conventions consistent across the project. Report deviations rather than silently changing a convention to accommodate one component.
-- Before reporting code changes as done, run the applicable checks. Once a Cargo project exists, use `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test --all-targets --all-features` where supported.
+- Use `make restart` from this repository to rebuild, stop, and reopen the app. Use `make -C pi-watch restart` from the control-plane root. Reload each reporting Pi session after extension changes. App-only changes need an app restart, not a Pi reload.
+- Before reporting changes as done, run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test --all-targets --all-features`. Also run `cargo test --all-targets` to check the default feature set and `node extensions/pi-watch.test.mjs` for reporting changes. A desktop session is required for visual checks.
 - Report checks that fail or cannot run, including the reason. Do not claim unrun checks passed.
 
 ## Safety
