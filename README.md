@@ -11,7 +11,7 @@ sh scripts/bundle.sh
 open "dist/Pi Watch.app"
 ```
 
-The menu bar displays `π ● N ○ M` for connected sessions only. The filled circle means active. The empty circle means idle. Open it to see connected sessions grouped by working directory, status duration, Kitty pane ID, and process ID. Use the menu's Quit item to exit. For development, `cargo run` also starts the native UI.
+The menu bar displays `π ● N ○ M` for connected sessions only. The filled circle means active. The empty circle means idle. Open it to see connected sessions grouped by project, with status duration and Kitty pane titles. Project headings show the superproject and relative repo path, or the standalone repo name. Pane numbers replace unavailable titles. Use the menu's Quit item to exit. For development, `cargo run` also starts the native UI.
 
 ## Connect sessions
 
@@ -35,7 +35,7 @@ Working begins at `before_agent_start`/`agent_start`; idle begins only at `agent
 
 ## Privacy and IPC
 
-The extension sends only protocol version, random reporting-instance ID, working directory, PID, Kitty window ID, Kitty control socket endpoint, and working/idle/disconnected status. No prompts, transcripts, tool data, or model responses are read or sent. Reports remain in memory.
+The extension sends protocol version, random reporting-instance ID, working directory, project label, PID, Kitty window ID, Kitty pane title, Kitty control socket endpoint, and working/idle/disconnected status. Git commands provide project labels. A bounded Kitty listing request selects the reporting pane and retains only its title. Other listing fields are discarded, not logged or sent. Titles can contain text set by terminal applications, so avoid sensitive pane titles. The extension does not inspect Pi prompts, transcripts, tool arguments, or model responses. Reports remain in memory.
 
 IPC uses `~/Library/Application Support/Pi Watch/events.sock` in a user-owned directory with mode `0700`; the socket has mode `0600`. Frames are limited to 8 KiB, clients have a short read timeout, and the registry is capped at 512 entries. A process lock prevents two app instances replacing each other's sockets. The socket may remain after exit and is replaced on next startup. Any process running as the same user can submit status: this is not a security boundary against malicious local software under your account.
 

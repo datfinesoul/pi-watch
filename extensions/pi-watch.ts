@@ -2,13 +2,73 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join, relative } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
+
+const execute = promisify(execFile);
+async function command(file: string, args: string[], cwd: string) {
+  try {
+    const { stdout } = await execute(file, args, { cwd, timeout: 1000, maxBuffer: 128 * 1024 });
+    return stdout.trim();
+  } catch { return ""; }
+}
+
+export function projectLabel(cwd: string, root: string, superRoot: string, hasSubmodules: boolean) {
+  const base = superRoot || root;
+  if (!base) return basename(cwd) || cwd;
+  const suffix = relative(base, cwd);
+  return `${superRoot || hasSubmodules ? "↳/" : ""}${basename(base)}${suffix ? `/${suffix}` : ""}`;
+}
+
+export function paneTitle(output: string, pane: string): string | null {
+  try {
+    for (const window of JSON.parse(output)) {
+      for (const tab of window.tabs ?? []) {
+        for (const candidate of tab.windows ?? []) {
+          if (String(candidate.id) === pane && typeof candidate.title === "string") {
+            return candidate.title.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 200) || null;
+          }
+        }
+      }
+    }
+  } catch { /* Missing or malformed Kitty response. */ }
+  return null;
+}
 
 export default function (pi: ExtensionAPI) {
   const path = join(homedir(), "Library/Application Support/Pi Watch/events.sock");
   let id = "";
   let cwd = "";
+  let project: string | null = null;
+  let title: string | null = null;
+  let refreshing = false;
+  async function refreshMetadata() {
+    if (refreshing) return;
+    refreshing = true;
+    const instance = id;
+    const directory = cwd;
+    try {
+      const [root, superRoot] = await Promise.all([
+        command("git", ["rev-parse", "--show-toplevel"], directory),
+        command("git", ["rev-parse", "--show-superproject-working-tree"], directory),
+      ]);
+      const submodules = root ? await command("git", ["config", "--file", join(root, ".gitmodules"), "--get-regexp", "^submodule\\..*\\.path$"], directory) : "";
+      const pane = process.env.KITTY_WINDOW_ID;
+      const endpoint = process.env.KITTY_LISTEN_ON;
+      let nextTitle: string | null = null;
+      if (pane && /^\d+$/.test(pane) && endpoint?.startsWith("unix:/")) {
+        // Request only this pane. Discard all fields other than its title.
+        const output = await command("kitty", ["@", "--to", endpoint, "ls", "--match", `id:${pane}`], directory);
+        nextTitle = paneTitle(output, pane);
+      }
+      if (instance === id) {
+        project = projectLabel(directory, root, superRoot, !!submodules);
+        title = nextTitle;
+      }
+    } finally { refreshing = false; }
+  }
   let status: "working" | "idle" | "disconnected" = "idle";
   let timer: ReturnType<typeof setInterval> | undefined;
   const sockets = new Set<ReturnType<typeof createConnection>>();
@@ -20,7 +80,7 @@ export default function (pi: ExtensionAPI) {
     socket.on("error", () => socket.destroy());
     socket.on("close", () => sockets.delete(socket));
     socket.on("connect", () => socket.end(JSON.stringify({
-      version: 1, id, cwd, pid: process.pid,
+      version: 1, id, cwd, pid: process.pid, project_label: project, kitty_title: title,
       kitty_window_id: process.env.KITTY_WINDOW_ID ?? null,
       kitty_listen_on: process.env.KITTY_LISTEN_ON ?? null, status,
     })));
@@ -32,13 +92,20 @@ export default function (pi: ExtensionAPI) {
     for (const socket of sockets) socket.destroy();
     sockets.clear();
   }
-  function start(ctx: ExtensionContext) {
+  async function start(ctx: ExtensionContext) {
     stop();
     id = randomUUID(); // A reporting instance, not a transcript identifier.
     cwd = ctx.cwd;
     status = ctx.isIdle() ? "idle" : "working";
+    project = null;
+    title = null;
+    const instance = id;
+    await refreshMetadata();
+    if (instance !== id) return;
     report();
-    timer = setInterval(report, 5000);
+    timer = setInterval(() => {
+      void refreshMetadata().then(() => { if (instance === id) report(); });
+    }, 5000);
     timer.unref();
   }
   pi.on("session_start", (_event, ctx) => start(ctx));

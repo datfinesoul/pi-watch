@@ -27,6 +27,8 @@ pub struct Update {
     pub version: u8,
     pub id: String,
     pub cwd: String,
+    pub project_label: Option<String>,
+    pub kitty_title: Option<String>,
     pub pid: u32,
     pub kitty_window_id: Option<String>,
     pub kitty_listen_on: Option<String>,
@@ -77,6 +79,8 @@ fn decode(bytes: &[u8]) -> Option<Update> {
         || u.id.len() > 200
         || u.cwd.len() > 4096
         || !u.cwd.starts_with('/')
+        || u.project_label.as_ref().is_some_and(|s| s.len() > 4096)
+        || u.kitty_title.as_ref().is_some_and(|s| s.len() > 1000)
         || u.pid == 0
         || u.kitty_listen_on.as_ref().is_some_and(|s| {
             !s.starts_with("unix:/") || s.len() > 4096 || s.chars().any(char::is_control)
@@ -153,6 +157,8 @@ mod tests {
             version: 1,
             id: "session".into(),
             cwd: "/tmp/project".into(),
+            project_label: None,
+            kitty_title: None,
             pid: 1,
             kitty_window_id: Some("100".into()),
             kitty_listen_on: Some("unix:/tmp/kitty.sock".into()),

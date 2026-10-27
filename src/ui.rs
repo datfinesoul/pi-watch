@@ -73,7 +73,13 @@ impl Controller {
                     menu.addItem(&NSMenuItem::separatorItem(mtm));
                 }
                 project = session.update.cwd.clone();
-                add_label(&menu, &project, mtm);
+                let label = session.update.project_label.as_deref().unwrap_or_else(|| {
+                    std::path::Path::new(&project)
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Project")
+                });
+                add_label(&menu, label, mtm);
             }
             let status = session.status(now);
             let (dot, name) = match status {
@@ -92,13 +98,18 @@ impl Controller {
                 .kitty_window_id
                 .as_deref()
                 .unwrap_or("unknown");
+            let title = session
+                .update
+                .kitty_title
+                .as_deref()
+                .map(str::to_owned)
+                .unwrap_or_else(|| format!("pane {pane}"));
             let item = add_label(
                 &menu,
                 &format!(
-                    "{dot} {name} · {}m {:02}s · pane {pane} · PID {}",
+                    "{dot} {name} · {}m {:02}s · {title}",
                     elapsed / 60,
-                    elapsed % 60,
-                    session.update.pid
+                    elapsed % 60
                 ),
                 mtm,
             );
@@ -121,11 +132,6 @@ impl Controller {
             }
         }
         menu.addItem(&NSMenuItem::separatorItem(mtm));
-        add_label(
-            &menu,
-            "Click a connected session to focus its Kitty pane",
-            mtm,
-        );
         let quit = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
                 NSMenuItem::alloc(mtm),
