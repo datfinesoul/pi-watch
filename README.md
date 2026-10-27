@@ -21,6 +21,60 @@ Open the menu to see connected sessions grouped by working directory, with statu
 
 Use the menu's Quit item to exit. For development, `cargo run` also starts the native UI. Stop the bundled app before a development run because only one app instance can own the reporting socket.
 
+## Development install and removal
+
+These commands configure the reporting extension, not the native app. Use the build and restart commands above for the app. Choose either the Git branch or the local checkout to avoid duplicate reporting extensions.
+
+Install globally from the development branch:
+
+```sh
+pi install git:github.com/datfinesoul/pi-watch@making-it-work
+```
+
+This uses the commits available on GitHub, not uncommitted changes or commits available only locally.
+
+Alternatively, install globally from a local checkout:
+
+```sh
+pi install /absolute/path/to/pi-watch
+```
+
+The local install uses the current working tree, including uncommitted changes. Keep the checkout at that path. Neither command uses `--local`, so Pi records the install in global settings.
+
+To install only for one project, run the matching command inside that project:
+
+```sh
+pi install --local git:github.com/datfinesoul/pi-watch@making-it-work
+# Or use the local checkout:
+pi install --local /absolute/path/to/pi-watch
+```
+
+To remove a global install, use its matching source:
+
+```sh
+pi remove git:github.com/datfinesoul/pi-watch@making-it-work
+# Or use the local checkout:
+pi remove /absolute/path/to/pi-watch
+```
+
+To remove a project-only install, run the matching command inside that project:
+
+```sh
+pi remove --local git:github.com/datfinesoul/pi-watch@making-it-work
+# Or use the local checkout:
+pi remove --local /absolute/path/to/pi-watch
+```
+
+Project-only removal leaves any global install intact. To disable a global install in just one project, run this command inside that project:
+
+```sh
+pi config --local
+```
+
+Disable Pi Watch's reporting extension in the project configuration. Do not remove the global install. This control plane already selects its local reporting extension and disables the global Git package. Do not re-enable the global copy here.
+
+After an install, removal, or configuration change, run `/reload` in affected Pi sessions. A session started with explicit `--extension` still loads that command-line resource. Restart that session without the flag to remove it.
+
 ## Connect sessions
 
 Launch Pi in each pane with the reporting extension, using an absolute path when outside this checkout:
