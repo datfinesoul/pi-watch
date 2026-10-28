@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "extensions/**/*.md"
+  pull_request:
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "extensions/**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node.js ${{ matrix.node-version }} (${{ matrix.package-manager }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - "22.19"
+          - "24"
+          - "26"
+        package-manager:
+          - npm
+          - pnpm
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up pnpm
+        if: matrix.package-manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Run tests
+        run: ${{ matrix.package-manager }} run test
+      - name: Validate package contents
+        run: ${{ matrix.package-manager }} run pack:check
+
+  native:
+    name: macOS companion app
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          components: rustfmt, clippy
+      - name: Validate native app and build bundle
+        run: npm run check:app
+
+  version:
+    name: Version bump
+    # CI's path filters already skip pull requests that change only passive Markdown.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Require a new version and changelog section
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Adoption may be the first package manifest in this repository.
+          if git cat-file -e "$BASE_SHA:package.json" 2>/dev/null; then
+            git show "$BASE_SHA:package.json" > "$RUNNER_TEMP/base-package.json"
+          else
+            printf '{}\n' > "$RUNNER_TEMP/base-package.json"
+          fi
+          node --input-type=module - <<'SCRIPT'
+          import { readFileSync } from "node:fs";
+          const pattern = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+          const parse = (label, value) => {
+            const match = pattern.exec(String(value ?? ""));
+            if (!match) { console.log(`::error::${label} version '${value}' is not valid SemVer.`); process.exit(1); }
+            return { core: match.slice(1, 4).map(Number), pre: match[4]?.split(".") ?? [] };
+          };
+          const identifier = (a, b) => {
+            const [na, nb] = [/^\d+$/.test(a), /^\d+$/.test(b)];
+            if (na && nb) return Math.sign(Number(a) - Number(b));
+            if (na !== nb) return na ? -1 : 1;
+            return a < b ? -1 : a > b ? 1 : 0;
+          };
+          // SemVer 2.0.0 precedence; build metadata is ignored.
+          const compare = (a, b) => {
+            for (let i = 0; i < 3; i++) if (a.core[i] !== b.core[i]) return Math.sign(a.core[i] - b.core[i]);
+            if (!a.pre.length || !b.pre.length) return b.pre.length - a.pre.length;
+            for (let i = 0; i < Math.min(a.pre.length, b.pre.length); i++) {
+              const result = identifier(a.pre[i], b.pre[i]);
+              if (result) return result;
+            }
+            return Math.sign(a.pre.length - b.pre.length);
+          };
+          const base = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/base-package.json`, "utf8")).version;
+          const head = JSON.parse(readFileSync("package.json", "utf8")).version;
+          const headVersion = parse("Head", head);
+          if (base !== undefined && compare(headVersion, parse("Base", base)) <= 0) {
+            console.log(`::error file=package.json::This pull request changes files that trigger CI, so it must bump package.json version above ${base} (found ${head}). Only passive Markdown changes are exempt.`);
+            process.exit(1);
+          }
+          if (!readFileSync("CHANGELOG.md", "utf8").includes(`## [${head}] - `)) {
+            console.log(`::error file=CHANGELOG.md::CHANGELOG.md has no '## [${head}] - <date>' section.`);
+            process.exit(1);
+          }
+          console.log(`Version ${base ?? "initial package adoption"} -> ${head}.`);
+          SCRIPT

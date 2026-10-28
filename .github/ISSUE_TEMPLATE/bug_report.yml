@@ -1,0 +1,58 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Before filing a security issue, read SECURITY.md and use private vulnerability reporting.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the app build, reporting-extension setup, session status, and Kitty navigation steps that reproduce the issue. Do not include transcripts, credentials, private paths, or control socket endpoints.
+      placeholder: |
+        1. Build and start the app with ...
+        2. Load reporting in Pi with ...
+        3. Observe the status or select a pane ...
+    validations:
+      required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: pi-watch extension and app versions or commits
+    validations:
+      required: true
+  - type: input
+    id: pi-version
+    attributes:
+      label: Pi version
+      description: Output of `pi --version`.
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`.
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add logs or other relevant context. Remove secrets and private data.
