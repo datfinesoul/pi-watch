@@ -1,4 +1,5 @@
 mod focus;
+mod hotkey;
 mod monitor;
 mod ui;
 

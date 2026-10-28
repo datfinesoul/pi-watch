@@ -23,6 +23,12 @@ pub enum Status {
 }
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct Preview {
+    pub first: String,
+    pub last: String,
+}
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Update {
     pub version: u8,
     pub id: String,
@@ -34,6 +40,7 @@ pub struct Update {
     pub kitty_listen_on: Option<String>,
     pub kitty_focused: Option<bool>,
     pub status: Status,
+    pub preview: Option<Preview>,
 }
 pub struct Session {
     pub update: Update,
@@ -108,6 +115,11 @@ fn decode(bytes: &[u8]) -> Option<Update> {
         || !u.cwd.starts_with('/')
         || u.project_label.as_ref().is_some_and(|s| s.len() > 4096)
         || u.kitty_title.as_ref().is_some_and(|s| s.len() > 1000)
+        || u.preview.as_ref().is_some_and(|p| {
+            [&p.first, &p.last]
+                .iter()
+                .any(|s| s.chars().count() > 240 || s.chars().any(char::is_control))
+        })
         || u.pid == 0
         || u.kitty_listen_on.as_ref().is_some_and(|s| {
             !s.starts_with("unix:/") || s.len() > 4096 || s.chars().any(char::is_control)
@@ -165,12 +177,44 @@ pub fn start() -> io::Result<Sessions> {
         for stream in listener.incoming().flatten() {
             let _ = stream.set_read_timeout(Some(Duration::from_millis(100)));
             let mut bytes = Vec::new();
-            if stream.take(8193).read_to_end(&mut bytes).is_ok()
-                && bytes.len() <= 8192
-                && let Some(update) = decode(&bytes)
-                && let Ok(mut sessions) = state.lock()
-            {
+            if stream.take(8193).read_to_end(&mut bytes).is_err() {
+                crate::hotkey::trace(format_args!(
+                    "report rejected: read failed bytes={}",
+                    bytes.len()
+                ));
+                continue;
+            }
+            if bytes.len() > 8192 {
+                crate::hotkey::trace(format_args!("report rejected: exceeds 8192-byte limit"));
+                continue;
+            }
+            let Some(update) = decode(&bytes) else {
+                // Never print serde errors: they can contain rejected input values.
+                crate::hotkey::trace(format_args!(
+                    "report rejected: schema or validation bytes={}",
+                    bytes.len()
+                ));
+                continue;
+            };
+            crate::hotkey::trace(format_args!(
+                "report received pid={} status={:?} bytes={} preview={} first_chars={} last_chars={}",
+                update.pid,
+                update.status,
+                bytes.len(),
+                update.preview.is_some(),
+                update
+                    .preview
+                    .as_ref()
+                    .map_or(0, |p| p.first.chars().count()),
+                update
+                    .preview
+                    .as_ref()
+                    .map_or(0, |p| p.last.chars().count()),
+            ));
+            if let Ok(mut sessions) = state.lock() {
                 apply(&mut sessions, update, Instant::now());
+            } else {
+                crate::hotkey::trace(format_args!("report not applied: session lock poisoned"));
             }
         }
     });
@@ -190,8 +234,20 @@ mod tests {
             kitty_window_id: Some("100".into()),
             kitty_listen_on: Some("unix:/tmp/kitty.sock".into()),
             kitty_focused: None,
+            preview: None,
             status,
         }
+    }
+    #[test]
+    fn preview_accepts_bounded_unicode_and_rejects_oversize_or_controls() {
+        let base = include_str!("../../../test/fixtures/protocol-v1.json");
+        let mut value: serde_json::Value = serde_json::from_str(base).unwrap();
+        value["preview"] = serde_json::json!({"first": "😀".repeat(240), "last": "end"});
+        assert!(decode(&serde_json::to_vec(&value).unwrap()).is_some());
+        value["preview"]["first"] = serde_json::json!("a".repeat(241));
+        assert!(decode(&serde_json::to_vec(&value).unwrap()).is_none());
+        value["preview"]["first"] = serde_json::json!("bad\ntext");
+        assert!(decode(&serde_json::to_vec(&value).unwrap()).is_none());
     }
     #[test]
     fn heartbeat_preserves_elapsed_and_stale_disconnects() {

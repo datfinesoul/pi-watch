@@ -96,9 +96,11 @@ For local installations, substitute `/path/to/pi-watch` as the source. Run `/rel
 
 Start the app, then load the reporting extension in each Pi session you want to monitor. Sessions without Kitty still report status, but pane navigation is unavailable.
 
-The menu bar shows `π ● N ○ M` for connected sessions. The filled circle means active, and the empty circle means idle. An additional `! N` counts unseen active-to-idle transitions. Open the menu for sessions grouped by working directory, status duration, and Kitty pane titles. Git labels use forms such as `↳/superproject/repo/src` or `repo/src`. Non-Git directories use their directory name, and pane numbers replace unavailable titles. Process IDs do not appear in the interface.
+The menu bar prioritizes completed sessions awaiting inspection. It shows `π N` when unseen active-to-idle transitions exist, even if other sessions remain active. Otherwise, it shows `π ●` while sessions work, or `π` when all sessions are idle. Disconnected sessions do not affect these indicators.
 
-Click a session to focus its Kitty pane and activate Kitty on macOS. Rows without a pane ID or socket endpoint remain disabled. Successful navigation clears that session's `!` marker. Opening the menu alone does not clear markers. Manual navigation clears a marker when Kitty reports focus, normally within five seconds.
+Open the menu for a **Done — awaiting inspection** section, followed by remaining sessions grouped by working directory. Rows show status duration and Kitty pane titles. Git labels use forms such as `↳/superproject/repo/src` or `repo/src`. Non-Git directories use their directory name, and pane numbers replace unavailable titles. Process IDs do not appear in the interface.
+
+Click a session to focus its Kitty pane and activate Kitty on macOS. Rows without a pane ID or socket endpoint remain disabled. Successful navigation clears that session's unseen completion. Opening the menu alone does not clear completions. Manual navigation clears a completion when Kitty reports focus, normally within five seconds. Failed navigation leaves the completion pending.
 
 Configure Kitty remote control outside Pi. Start reporting Pi processes inside Kitty with `KITTY_WINDOW_ID` and a Unix `KITTY_LISTEN_ON` endpoint. Prefer socket-only access in a user-owned directory with mode `0700`. Pi Watch does not configure Kitty or discover another endpoint. The app searches `/Applications/kitty.app` and `~/Applications/kitty.app`. Command failures appear on standard error.
 
@@ -111,6 +113,12 @@ CARGO_TARGET_DIR="$PWD/target" cargo run --manifest-path apps/macos/Cargo.toml -
 ```
 
 Popovers appear after active-to-idle transitions and close after about five seconds or an outside click. Completions observed together share one popover. The standard bundle uses default features. Notification banners, launch-at-login, persistent history, custom icons, and needs-attention inference are not included.
+
+## Keyboard shortcut
+
+Press **Cmd+Shift+'** to open the menu from another app. Release the modifiers, then press **1–9** to activate a numbered completion. Only the first nine navigable completions receive numbers. Other rows remain accessible with the mouse or arrow keys. Press **Escape** to dismiss the menu.
+
+Menu rows and numbers remain fixed while the menu is open. Close and reopen it to see new completions. The shortcut uses the physical ANSI quote key, which can have another label on non-US layouts. It uses macOS hotkey registration, not a keyboard monitor, and requires no Input Monitoring permission. If registration fails, the app logs the macOS error to standard error. Mouse navigation remains available.
 
 ## How it works
 
@@ -126,7 +134,9 @@ Unknown focus does not clear a marker. A focused pane can briefly show one until
 
 Reports contain protocol version, random reporting-instance ID, working directory, project label, process ID, and working/idle/disconnected status. Kitty metadata includes pane ID, title, control socket endpoint, and focus state. A bounded Kitty listing request selects the reporting pane and retains only its title and focus flags. The extension discards other listing fields without logging or sending them. Avoid sensitive pane titles because terminal applications can set them.
 
-The extension does not inspect prompts, transcripts, tool arguments, credentials, or model responses. It makes no model calls. Reports remain in app memory, and there is no network listener. The extension uses `git` and `kitty` from Pi's `PATH`. Missing commands produce fallback labels and unknown focus rather than stopping status reporting.
+Highlight a session and press Right Arrow to open its submenu. The submenu shows beginning and ending fragments of the last completed assistant response. Use Left Arrow to return. The submenu contains only the preview, with an ellipsis between fragments. Sessions without a preview have no submenu. Previews appear only for responses completed after the extension loads. The previous preview remains visible during the next response.
+
+The extension extracts at most 240 Unicode characters from each end of completed assistant text. It sends only these fragments through local IPC. Previews stay in memory and are not logged or persisted. The extension does not inspect stored transcripts, prompts, thinking content, tool arguments, tool output, or credentials. It makes no model calls. Reports remain in app memory, and there is no network listener. The extension uses `git` and `kitty` from Pi's `PATH`. Missing commands produce fallback labels and unknown focus rather than stopping status reporting.
 
 IPC uses `~/Library/Application Support/Pi Watch/events.sock` in a user-owned directory with mode `0700`. The socket uses mode `0600`. The app limits frames to 8 KiB and registry entries to 512. Clients have a short read timeout. An `app.lock` file prevents concurrent app instances from replacing each other's sockets. The socket may remain after exit. The app replaces it on startup. These are native app runtime paths, not extension configuration layers. No user configuration files are currently read.
 
@@ -134,7 +144,7 @@ Any process running as the same user can submit status. Kitty remote control per
 
 ### Compatibility
 
-The extension and app share one product version. The IPC protocol has its own version, currently `1`. This standardization keeps protocol 1 and existing behavior unchanged. The receiver rejects other protocol versions and unknown fields. For a future protocol change, upgrade and restart the app first, then reload reporting extensions. Mixed incompatible protocol versions will not report correctly.
+The extension and app share one product version. The IPC protocol has its own version, currently `1`. Protocol 1 now includes an optional preview field. The updated app accepts reports from older extensions without previews. Older apps reject reports that contain the new field. Upgrade and restart the app before reloading reporting extensions. The receiver rejects other protocol versions and unknown fields.
 
 ## Development
 
@@ -164,16 +174,33 @@ make build    # Build without starting the app
 make open     # Open the checkout build
 make stop     # Stop the running app
 make restart  # Rebuild, stop, and reopen the checkout build
+make restart-debug  # Rebuild and restart with foreground debug logs
 ```
 
 From the control plane, use `make -C pi-watch <target>`. App-only changes require an app restart. Extension changes require `/reload` in each reporting Pi session. If the protocol changes, restart the updated app before reloading extensions.
+
+### Shortcut debug logging
+
+Use `make restart-debug` to rebuild, stop the running app, and start a foreground instance with `PI_WATCH_DEBUG=1`. Debug output appears in the terminal and in `target/pi-watch-debug.log`. Each run overwrites the previous log. Logging is off for normal app starts. From the control-plane root:
+
+```sh
+make -C pi-watch restart-debug
+# Optional log destination:
+make -C pi-watch restart-debug DEBUG_LOG=/tmp/pi-watch-debug.log
+```
+
+Reproduce the problem, then quit Pi Watch through its menu. The log includes the process ID, relative times, Carbon event timestamps, dismissal cutoff, callback guards, and menu delegate events. It also records report receipt, report rejection categories, preview presence, fragment character counts, and preview state when the menu opens. It excludes session titles, paths, prompts, and response text. Remove the log when it is no longer needed. Start the app normally without the environment variable to disable logging.
 
 ### Manual desktop checks
 
 Automated checks do not check AppKit placement, desktop focus behavior, or live Kitty permissions. Check these in a logged-in macOS desktop session after related changes:
 
-- [ ] The menu bar and project groups show the expected active/idle counts, elapsed times, and pane titles.
-- [ ] An off-pane session that becomes idle receives `!`, and visiting it through Kitty or Pi Watch clears the marker.
+- [ ] The menu bar shows `π N` for unseen completions, `π ●` for working sessions without unseen completions, and `π` otherwise.
+- [ ] An off-pane session that becomes idle enters the Done section. Visiting it through Kitty or Pi Watch clears its completion.
+- [ ] Cmd+Shift+' opens the menu from another app. Plain digits 1–9 activate the corresponding numbered panes, and Escape dismisses the menu.
+- [ ] A new completion does not change numbers while the menu is open. Entries beyond nine remain accessible through normal navigation.
+- [ ] The shortcut works with the intended keyboard layout. An existing shortcut conflict produces an error without disabling mouse navigation.
+- [ ] Failed pane navigation leaves the completion pending. Project groups, elapsed times, and pane titles remain correct.
 - [ ] Pane navigation activates Kitty and selects the correct pane.
 - [ ] Reload does not duplicate sessions, and closed or stale sessions disappear.
 - [ ] Restarting the app restores reporting through heartbeats.

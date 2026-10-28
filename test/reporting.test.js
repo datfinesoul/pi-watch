@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import test from "node:test";
-import { registerReporting } from "../src/reporting.js";
+import { registerReporting, responsePreview } from "../src/reporting.js";
 
 async function until(predicate) {
   const deadline = Date.now() + 2000;
@@ -144,6 +144,37 @@ test("reporting without Kitty retains fallback labels and does not query Kitty",
   assert.equal(f.reports[0].kitty_listen_on, null);
   assert.equal(f.reports[0].kitty_focused, null);
   assert.equal(f.reports[0].project_label, "project");
+});
+
+test("previews include only bounded completed assistant text and reset on replacement", async t => {
+  const f = await fixture(t);
+  await f.listen();
+  await f.start();
+  await until(() => f.reports.length === 1);
+  const end = message => f.handlers.get("message_end")({ message });
+  end({ role: "user", content: [{ type: "text", text: "private" }] });
+  end({ role: "assistant", stopReason: "aborted", content: [{ type: "text", text: "partial" }] });
+  await pause(20);
+  assert.equal(f.reports.length, 1);
+  end({ role: "assistant", stopReason: "stop", content: [
+    { type: "thinking", thinking: "private" },
+    { type: "toolCall", arguments: { secret: "private" } },
+    { type: "text", text: "A".repeat(240) + "omitted middle" + "😀".repeat(240) },
+  ] });
+  await until(() => f.reports.length === 2);
+  assert.deepEqual(f.reports.at(-1).preview, { first: "A".repeat(240), last: "😀".repeat(240) });
+  f.handlers.get("agent_start")({});
+  await until(() => f.reports.length === 3);
+  assert.deepEqual(f.reports.at(-1).preview, f.reports[1].preview);
+  await f.start();
+  await until(() => f.reports.length === 4);
+  assert.equal(f.reports.at(-1).preview, undefined);
+});
+
+test("preview extraction normalizes text and avoids overlap", () => {
+  assert.equal(responsePreview([{ type: "thinking", thinking: "secret" }]), null);
+  assert.deepEqual(responsePreview([{ type: "text", text: " hello\n\tworld\u0000 " }]), { first: "hello world", last: "" });
+  assert.deepEqual(responsePreview([{ type: "text", text: "a".repeat(240) + "end" }]), { first: "a".repeat(240), last: "end" });
 });
 
 test("shutdown stops heartbeat reporting", async t => {
