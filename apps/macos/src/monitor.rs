@@ -375,6 +375,20 @@ mod tests {
         assert!(decode(frame("unix:relative.sock").as_bytes()).is_none());
     }
     #[test]
+    fn accepts_the_extension_protocol_fixture() {
+        let update = decode(include_bytes!("../../../test/fixtures/protocol-v1.json"))
+            .expect("the extension's protocol 1 report must remain compatible");
+        assert_eq!(update.version, 1);
+        assert_eq!(update.pid, 42);
+        assert_eq!(update.cwd, "/tmp/project");
+        assert_eq!(update.status, Status::Idle);
+        assert_eq!(update.kitty_window_id.as_deref(), Some("123"));
+        assert_eq!(
+            update.kitty_listen_on.as_deref(),
+            Some("unix:/tmp/kitty-test.sock")
+        );
+    }
+    #[test]
     fn rejects_unknown_fields_and_versions() {
         assert!(
             decode(br#"{"version":2,"id":"a","cwd":"/tmp","pid":1,"status":"idle"}"#).is_none()

@@ -149,7 +149,7 @@ impl Controller {
         let mut project = String::new();
         if rows.is_empty() {
             add_label(&menu, "No connected Pi sessions", mtm);
-            add_label(&menu, "Load extensions/pi-watch.ts in Pi", mtm);
+            add_label(&menu, "Load extensions/watch/index.ts in Pi", mtm);
         }
         for session in rows {
             if session.update.cwd != project {

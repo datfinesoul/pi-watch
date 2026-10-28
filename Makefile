@@ -1,9 +1,17 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help build open stop restart
+.PHONY: help test check build open stop restart
 
 help:
-	@printf '%s\n' 'make build    Build and sign the app' 'make open     Open the built app' 'make stop     Stop the running app' 'make restart  Rebuild, stop, and reopen the app'
+	@printf '%s\n' 'make test     Test extension logic and product versions' 'make check    Run extension, package, and native checks' 'make build    Build and sign the app' 'make open     Open the built app' 'make stop     Stop the running app' 'make restart  Rebuild, stop, and reopen the app'
+
+test:
+	npm test
+
+check:
+	npm test
+	npm run pack:check
+	npm run check:app
 
 build:
 	sh scripts/bundle.sh

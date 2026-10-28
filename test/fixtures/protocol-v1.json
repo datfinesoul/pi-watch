@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "reporting-instance",
+  "cwd": "/tmp/project",
+  "pid": 42,
+  "project_label": "project",
+  "kitty_title": null,
+  "kitty_window_id": "123",
+  "kitty_listen_on": "unix:/tmp/kitty-test.sock",
+  "kitty_focused": null,
+  "status": "idle"
+}

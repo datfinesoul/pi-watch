@@ -1,6 +1,6 @@
 # Pi Watch
 
-This project contains a Rust and AppKit macOS menu bar app and a Pi reporting extension. The app shows connected Pi sessions across Kitty panes. Keep implementation, tooling, and documentation focused on that purpose. This is not a CLI or a terminal/session manager. The control plane classifies this module as experimental and exempts it from the shared module standard.
+This project contains a Rust and AppKit macOS menu bar app and a Pi reporting extension. The app shows connected Pi sessions across Kitty panes. Keep implementation, tooling, and documentation focused on that purpose. This is not a CLI or a terminal/session manager. The module follows the control plane's extension-with-companion-app standard. Keep Pi wiring in `extensions/watch/index.ts`, extension logic in root `src/`, Node tests in root `test/`, and native app sources and resources under `apps/macos/`. The current product targets macOS and Kitty. Do not add Linux support or change user-facing behavior as part of standardization.
 
 ## Product direction
 
@@ -27,7 +27,9 @@ The reporting extension sends `KITTY_WINDOW_ID`, `KITTY_LISTEN_ON`, pane title, 
 - Follow the repository's established conventions as they emerge. Prefer simple, idiomatic Rust and focused changes.
 - Keep shared conventions consistent across the project. Report deviations rather than silently changing a convention to accommodate one component.
 - Use `make restart` from this repository to rebuild, stop, and reopen the app. Use `make -C pi-watch restart` from the control-plane root. Reload each reporting Pi session after extension changes. App-only changes need an app restart, not a Pi reload.
-- Before reporting changes as done, run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test --all-targets --all-features`. Also run `cargo test --all-targets` to check the default feature set and `node extensions/pi-watch.test.mjs` for reporting changes. A desktop session is required for visual checks.
+- Before reporting changes as done, run `npm test`, `npm run pack:check`, and `npm run check:app` from the module root. Native checks require macOS, Rust with rustfmt and Clippy, and Apple command-line build tools. They run formatting, linting, tests for default and optional features, and bundle creation without launching the app. A desktop session is required for the manual checklist in the README.
+- Keep one product version across `package.json`, `apps/macos/Cargo.toml`, its lockfile, and both app bundle version fields. IPC protocol versions are independent. `npm test` and bundling check product versions.
+- Pi installation must remain extension-only. Do not build, install, or launch the app through extension startup or package lifecycle hooks. App runtime sockets and locks use native macOS paths, not extension configuration layers. No user configuration files are currently read.
 - Report checks that fail or cannot run, including the reason. Do not claim unrun checks passed.
 
 ## Safety
