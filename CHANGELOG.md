@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-28
+
+### Added
+
+- Response previews in session submenus, accessible with Right Arrow. Previews contain bounded beginning and ending fragments and stay in memory only.
+- Optional debug diagnostics for report delivery and preview availability, without response text.
+
+### Changed
+
+- Response submenus show only preview text, without a heading or navigation action.
+
 ## [0.3.0] - 2026-10-28
 
 ### Added
@@ -40,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Aligned extension, Cargo, lockfile, and bundle versions at `0.2.0` without changing IPC protocol 1 or current session-monitoring behavior.
 - Added native formatting, linting, tests, and bundle checks to full control-plane readiness on macOS.
 
-[Unreleased]: https://github.com/datfinesoul/pi-watch/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/datfinesoul/pi-watch/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/datfinesoul/pi-watch/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/datfinesoul/pi-watch/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/datfinesoul/pi-watch/releases/tag/v0.2.0

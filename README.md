@@ -144,7 +144,7 @@ Any process running as the same user can submit status. Kitty remote control per
 
 ### Compatibility
 
-The extension and app share one product version. The IPC protocol has its own version, currently `1`. This standardization keeps protocol 1 and existing behavior unchanged. The receiver rejects other protocol versions and unknown fields. For a future protocol change, upgrade and restart the app first, then reload reporting extensions. Mixed incompatible protocol versions will not report correctly.
+The extension and app share one product version. The IPC protocol has its own version, currently `1`. Protocol 1 now includes an optional preview field. The updated app accepts reports from older extensions without previews. Older apps reject reports that contain the new field. Upgrade and restart the app before reloading reporting extensions. The receiver rejects other protocol versions and unknown fields.
 
 ## Development
 
