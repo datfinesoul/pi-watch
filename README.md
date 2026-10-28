@@ -134,7 +134,9 @@ Unknown focus does not clear a marker. A focused pane can briefly show one until
 
 Reports contain protocol version, random reporting-instance ID, working directory, project label, process ID, and working/idle/disconnected status. Kitty metadata includes pane ID, title, control socket endpoint, and focus state. A bounded Kitty listing request selects the reporting pane and retains only its title and focus flags. The extension discards other listing fields without logging or sending them. Avoid sensitive pane titles because terminal applications can set them.
 
-The extension does not inspect prompts, transcripts, tool arguments, credentials, or model responses. It makes no model calls. Reports remain in app memory, and there is no network listener. The extension uses `git` and `kitty` from Pi's `PATH`. Missing commands produce fallback labels and unknown focus rather than stopping status reporting.
+Highlight a session and press Right Arrow to open its submenu. The submenu shows beginning and ending fragments of the last completed assistant response. Use Left Arrow to return. The submenu contains only the preview, with an ellipsis between fragments. Sessions without a preview have no submenu. Previews appear only for responses completed after the extension loads. The previous preview remains visible during the next response.
+
+The extension extracts at most 240 Unicode characters from each end of completed assistant text. It sends only these fragments through local IPC. Previews stay in memory and are not logged or persisted. The extension does not inspect stored transcripts, prompts, thinking content, tool arguments, tool output, or credentials. It makes no model calls. Reports remain in app memory, and there is no network listener. The extension uses `git` and `kitty` from Pi's `PATH`. Missing commands produce fallback labels and unknown focus rather than stopping status reporting.
 
 IPC uses `~/Library/Application Support/Pi Watch/events.sock` in a user-owned directory with mode `0700`. The socket uses mode `0600`. The app limits frames to 8 KiB and registry entries to 512. Clients have a short read timeout. An `app.lock` file prevents concurrent app instances from replacing each other's sockets. The socket may remain after exit. The app replaces it on startup. These are native app runtime paths, not extension configuration layers. No user configuration files are currently read.
 
@@ -187,7 +189,7 @@ make -C pi-watch restart-debug
 make -C pi-watch restart-debug DEBUG_LOG=/tmp/pi-watch-debug.log
 ```
 
-Reproduce the problem, then quit Pi Watch through its menu. The log includes the process ID, relative times, Carbon event timestamps, dismissal cutoff, callback guards, and menu delegate events. It excludes session titles, paths, prompts, and responses. Remove the log when it is no longer needed. Start the app normally without the environment variable to disable logging.
+Reproduce the problem, then quit Pi Watch through its menu. The log includes the process ID, relative times, Carbon event timestamps, dismissal cutoff, callback guards, and menu delegate events. It also records report receipt, report rejection categories, preview presence, fragment character counts, and preview state when the menu opens. It excludes session titles, paths, prompts, and response text. Remove the log when it is no longer needed. Start the app normally without the environment variable to disable logging.
 
 ### Manual desktop checks
 

@@ -43,6 +43,17 @@ define_class!(
         #[unsafe(method(menuWillOpen:))]
         fn menu_will_open(&self, _menu: &NSMenu) {
             crate::hotkey::trace(format_args!("delegate menuWillOpen menu={:p} previous_open={}", _menu, self.ivars().menu_open.get()));
+            if let Ok(sessions) = self.ivars().sessions.lock() {
+                let now = Instant::now();
+                for session in sessions.values().filter(|s| s.status(now) != Status::Disconnected) {
+                    crate::hotkey::trace(format_args!(
+                        "menu session pid={} preview={} first_chars={} last_chars={}",
+                        session.update.pid, session.update.preview.is_some(),
+                        session.update.preview.as_ref().map_or(0, |p| p.first.chars().count()),
+                        session.update.preview.as_ref().map_or(0, |p| p.last.chars().count()),
+                    ));
+                }
+            }
             self.ivars().menu_open.set(true);
         }
         #[unsafe(method(menuDidClose:))]
@@ -285,6 +296,16 @@ impl Controller {
                 }
                 item.setEnabled(true);
             }
+            if let Some(preview) = &session.update.preview {
+                let submenu = NSMenu::new(mtm);
+                add_preview(&submenu, &preview.first, mtm);
+                if !preview.last.is_empty() {
+                    add_label(&submenu, "…", mtm);
+                    add_preview(&submenu, &preview.last, mtm);
+                }
+                item.setSubmenu(Some(&submenu));
+                item.setEnabled(true);
+            }
         }
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         let quit = unsafe {
@@ -317,6 +338,25 @@ fn menu_bar_title(waiting: usize, working: usize) -> String {
 }
 fn completion_digit(index: usize) -> Option<String> {
     (1..=9).contains(&index).then(|| index.to_string())
+}
+
+fn add_preview(menu: &NSMenu, text: &str, mtm: MainThreadMarker) {
+    let item = add_label(menu, "", mtm);
+    let label = NSTextField::wrappingLabelWithString(&NSString::from_str(text), mtm);
+    label.setMaximumNumberOfLines(0);
+    label.setFrame(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(400.0, 0.0)));
+    label.sizeToFit();
+    let height = label.frame().size.height.max(20.0);
+    let view = NSView::initWithFrame(
+        NSView::alloc(mtm),
+        NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(428.0, height + 16.0)),
+    );
+    label.setFrame(NSRect::new(
+        NSPoint::new(14.0, 8.0),
+        NSSize::new(400.0, height),
+    ));
+    view.addSubview(&label);
+    item.setView(Some(&view));
 }
 
 fn add_label(menu: &NSMenu, text: &str, mtm: MainThreadMarker) -> Retained<NSMenuItem> {

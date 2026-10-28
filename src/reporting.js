@@ -1,4 +1,4 @@
-/** Minimal local status reporting. No prompts, transcripts, or tool data. */
+/** Local status reporting with bounded, memory-only assistant previews. */
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,27 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { paneMetadata, projectLabel } from "./metadata.js";
+
+// Retain at most 240 Unicode code points at each end, never the full response.
+export function responsePreview(content) {
+  let first = "";
+  let last = "";
+  let length = 0;
+  for (const block of content ?? []) {
+    if (block.type !== "text" || typeof block.text !== "string") continue;
+    for (const char of `${length ? " " : ""}${block.text}`) {
+      if (/\s/u.test(char)) {
+        if (!length || last.endsWith(" ")) continue;
+      } else if (/\p{Cc}|\p{Cf}/u.test(char)) continue;
+      const clean = /\s/u.test(char) ? " " : char;
+      if (length < 240) first += clean;
+      last = Array.from(last + clean).slice(-240).join("");
+      length++;
+    }
+  }
+  if (!first.trim()) return null;
+  return { first: first.trim(), last: length > 240 ? Array.from(last).slice(-Math.min(240, length - 240)).join("").trim() : "" };
+}
 
 const execute = promisify(execFile);
 async function command(file, args, cwd) {
@@ -53,6 +74,7 @@ export function registerReporting(pi, {
       }
     } finally { refreshing = false; }
   }
+  let preview = null;
   let status = "idle";
   let timer;
   const sockets = new Set();
@@ -68,6 +90,7 @@ export function registerReporting(pi, {
       kitty_window_id: env.KITTY_WINDOW_ID ?? null,
       kitty_listen_on: env.KITTY_LISTEN_ON ?? null,
       kitty_focused: includeFocus ? focused : null, status,
+      ...(preview ? { preview } : {}),
     })));
     socket.unref();
   }
@@ -82,6 +105,7 @@ export function registerReporting(pi, {
     id = randomUUID(); // A reporting instance, not a transcript identifier.
     cwd = ctx.cwd;
     status = ctx.isIdle() ? "idle" : "working";
+    preview = null;
     project = null;
     title = null;
     focused = null;
@@ -97,6 +121,11 @@ export function registerReporting(pi, {
   pi.on("session_start", (_event, ctx) => start(ctx));
   pi.on("before_agent_start", () => { status = "working"; report(); });
   pi.on("agent_start", () => { status = "working"; report(); });
+  pi.on("message_end", ({ message }) => {
+    if (message.role !== "assistant" || message.stopReason !== "stop") return;
+    const next = responsePreview(message.content);
+    if (next) { preview = next; report(); }
+  });
   // agent_end is NOT idle: retries and queued work can follow it.
   pi.on("agent_settled", () => { status = "idle"; report(); });
   pi.on("session_shutdown", async () => {
