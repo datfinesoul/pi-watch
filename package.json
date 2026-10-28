@@ -1,6 +1,6 @@
 {
   "name": "@datfinesoul/pi-watch",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A Pi extension with a native macOS companion app for monitoring session status across Kitty panes.",
   "type": "module",
   "license": "MIT",

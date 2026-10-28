@@ -1,6 +1,6 @@
 [package]
 name = "pi-watch"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "Native macOS companion app for Pi Watch"
