@@ -143,14 +143,14 @@ allow_remote_control socket
 listen_on unix:${HOME}/.local/share/kitty/pi-watch.sock
 ```
 
-Kitty accepts requests that arrive over the socket and confirms requests typed in the terminal with a password. Prepare the socket directory with mode `0700`, then restart Kitty:
+Kitty accepts requests that arrive over the socket and confirms requests typed in the terminal with a password. Kitty does not create the parent directory: `listen_on` is reported invalid and ignored while the directory is missing. Prepare a user-owned directory with mode `0700`, then restart Kitty:
 
 ```sh
 mkdir -p "$HOME/.local/share/kitty"
 chmod 0700 "$HOME/.local/share/kitty"
 ```
 
-Kitty appends the Kitty process ID to the socket file name, so each Kitty instance uses its own socket. Start the reporting Pi session inside Kitty so that its environment contains `KITTY_WINDOW_ID` and `KITTY_LISTEN_ON`. Read the `Kitty remote control` section of the Kitty documentation for the full details.
+Kitty appends the Kitty process ID to the socket file name, so each Kitty instance uses its own socket. If kitty reports `Invalid listen_on=..., ignoring`, the directory does not exist yet. Start the reporting Pi session inside Kitty so that its environment contains `KITTY_WINDOW_ID` and `KITTY_LISTEN_ON`. Read the `Kitty remote control` section of the Kitty documentation for the full details.
 
 Use **Quit Pi Watch** to exit, which works the same way on both platforms. Only one app instance can own the reporting socket. Menu content refreshes once per second during the normal app run loop. Close and reopen a menu that stays open across a status change.
 
