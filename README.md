@@ -166,7 +166,11 @@ Popovers appear after active-to-idle transitions and close after about five seco
 
 On macOS, press **Cmd+Shift+'** to open the menu from another app. Release the modifiers, then press **1–9** to activate a numbered completion. Only the first nine navigable completions receive numbers. Other rows remain accessible with the mouse or arrow keys. Press **Escape** to dismiss the menu. It uses the physical ANSI quote key, which can have another label on non-US layouts. It uses macOS hotkey registration, not a keyboard monitor, and requires no Input Monitoring permission.
 
-On Linux, press **Super+Shift+'** to focus the most recent **Done — awaiting inspection** pane directly. The desktop shell renders the tray menu, and no supported call opens it programmatically, so the menu opens by tray click only. The shortcut uses an exclusive X11 key grab in an X11 session and accounts for Caps- and Num-lock states. When another program owns the combination, or registration fails, the app logs an X11 error to standard error. Mouse navigation remains available.
+On Linux, press **Super+Shift+'** to open a popup window with the session list from any app. It shows the tray menu content: the Done — awaiting inspection section, project groups, and one row per session with a drawn status dot, elapsed time, and pane title. Previews appear as a dim second line under their row. The popup has no preview submenus, and its flat dark single-font style does not yet adapt to light themes.
+
+Rows and numbers freeze while the popup is open. Close and reopen it to see changes. Release the modifiers, then press 1–9 to activate a numbered completion. Click any navigable row to focus its pane. Press Escape or click outside the popup to dismiss it. The app restores the previous focus after dismissal.
+
+The shortcut uses an exclusive X11 key grab in an X11 session and accounts for Caps- and Num-lock states. When another program owns the combination, or registration fails, the app logs an X11 error to standard error. The desktop shell renders the tray menu, and no supported call opens it programmatically, so the menu opens by tray click only. Mouse navigation remains available.
 
 Menu rows and numbers remain fixed while the menu is open. Close and reopen it to see new completions. A parsing or delivery failure never disables mouse navigation on either platform.
 
@@ -184,7 +188,7 @@ Unknown focus does not clear a marker. A focused pane can briefly show one until
 
 Reports contain protocol version, random reporting-instance ID, working directory, project label, process ID, and working/idle/disconnected status. Kitty metadata includes pane ID, title, control socket endpoint, and focus state. A bounded Kitty listing request selects the reporting pane and retains only its title and focus flags. The extension discards other listing fields without logging or sending them. Avoid sensitive pane titles because terminal applications can set them.
 
-Highlight a session and press Right Arrow to open its submenu. The submenu shows beginning and ending fragments of the last completed assistant response. Use Left Arrow to return. The submenu contains only the preview, with an ellipsis between fragments. Sessions without a preview have no submenu. Previews appear only for responses completed after the extension loads. The previous preview remains visible during the next response.
+Highlight a session and press Right Arrow to open its submenu. The submenu shows beginning and ending fragments of the last completed assistant response. Use Left Arrow to return. The submenu contains only the preview, with an ellipsis between fragments. Sessions without a preview have no submenu. Previews appear only for responses completed after the extension loads. The previous preview remains visible during the next response. The Linux popup shows the fragments as a dim second line under the session row instead of a submenu.
 
 The extension extracts at most 240 Unicode characters from each end of completed assistant text. It sends only these fragments through local IPC. Previews stay in memory and are not logged or persisted. The extension does not inspect stored transcripts, prompts, thinking content, tool arguments, tool output, or credentials. It makes no model calls. Reports remain in app memory, and there is no network listener. The extension uses `git` and `kitty` from Pi's `PATH`. Missing commands produce fallback labels and unknown focus rather than stopping status reporting.
 
@@ -260,7 +264,7 @@ Automated checks do not check AppIndicator tray placement, desktop focus behavio
 
 - [ ] The tray shows the π icon in the top bar, and the menu opens on a tray click.
 - [ ] An off-pane session that becomes idle enters the Done section. Visiting it through Kitty or Pi Watch clears its completion.
-- [ ] Super+Shift+' focuses the most recent awaiting-inspection pane. An existing grab conflict produces an error without disabling tray navigation.
+- [ ] Super+Shift+' opens the popup from another app. Digits 1–9 after the modifiers release activate numbered completions, Escape and an outside click dismiss the popup, and the previous focus returns. An existing grab conflict produces an error without disabling tray navigation.
 - [ ] Clicking a navigable row switches Kitty to the correct pane. Failed navigation leaves the completion pending.
 - [ ] Project groups, elapsed times, preview submenus, pane titles, and sequential completion digits remain correct.
 - [ ] Reload does not duplicate sessions, and closed or stale sessions disappear.

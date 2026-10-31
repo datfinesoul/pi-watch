@@ -1,4 +1,4 @@
-//! A registered X11 shortcut, not a global keyboard monitor.
+//! The registered Super+Shift+' X11 shortcut with its popup state machine.
 use std::{
     ffi::{c_int, c_uint},
     ptr,
@@ -6,16 +6,24 @@ use std::{
         OnceLock,
         atomic::{AtomicU32, Ordering},
     },
-    time::Instant,
 };
 use x11::xlib;
 
+use crate::{
+    focus,
+    monitor::{self, Sessions},
+    popup::{self, Outcome, Popup},
+};
+
 pub fn trace(message: std::fmt::Arguments<'_>) {
     static ENABLED: OnceLock<bool> = OnceLock::new();
-    static START: OnceLock<Instant> = OnceLock::new();
+    static START: OnceLock<std::time::Instant> = OnceLock::new();
     if *ENABLED.get_or_init(|| std::env::var_os("PI_WATCH_DEBUG").is_some_and(|value| value == "1"))
     {
-        let elapsed = START.get_or_init(Instant::now).elapsed().as_secs_f64();
+        let elapsed = START
+            .get_or_init(std::time::Instant::now)
+            .elapsed()
+            .as_secs_f64();
         eprintln!(
             "[pi-watch debug pid={} +{elapsed:.6}s] {message}",
             std::process::id()
@@ -46,7 +54,7 @@ fn state_is_super_shift(state: c_uint) -> bool {
     state & !LOCKS == SUPER_SHIFT
 }
 
-pub fn register(callback: impl Fn() + Send + 'static) -> XResult {
+pub fn register(sessions: Sessions) -> XResult {
     trace(format_args!(
         "register Super+Shift+apostrophe version={}",
         env!("CARGO_PKG_VERSION")
@@ -57,7 +65,6 @@ pub fn register(callback: impl Fn() + Send + 'static) -> XResult {
         return Err(-1);
     }
     // SAFETY: keysym names are NUL-terminated UTF-8 strings.
-    // SAFETY replaced below
     let keysym = unsafe { xlib::XStringToKeysym(c"apostrophe".as_ptr()) };
     // SAFETY: the display is valid for the rest of this function.
     let keycode = unsafe { xlib::XKeysymToKeycode(display, keysym) };
@@ -72,7 +79,7 @@ pub fn register(callback: impl Fn() + Send + 'static) -> XResult {
         unsafe { xlib::XCloseDisplay(display) };
         return Err(code);
     }
-    listen(display, c_uint::from(keycode), Box::new(callback));
+    listen(display, c_uint::from(keycode), sessions);
     Ok(())
 }
 
@@ -119,19 +126,22 @@ struct XDisplay(*mut xlib::Display);
 // SAFETY: listen hands the display to exactly one thread and nobody else keeps it.
 unsafe impl Send for XDisplay {}
 
-fn listen(display: *mut xlib::Display, keycode: c_uint, callback: Box<dyn Fn() + Send>) {
+fn listen(display: *mut xlib::Display, keycode: c_uint, sessions: Sessions) {
     let fd = unsafe { xlib::XConnectionNumber(display) };
     // SAFETY: Only this thread touches the display from here on.
     let owned = XDisplay(display);
-    std::thread::spawn(move || run(owned, fd, keycode, callback));
+    std::thread::spawn(move || run(owned, fd, keycode, sessions));
 }
 
-fn run(XDisplay(display): XDisplay, fd: c_int, keycode: c_uint, callback: Box<dyn Fn() + Send>) {
+fn run(XDisplay(display): XDisplay, fd: c_int, keycode: c_uint, sessions: Sessions) {
     let mut poll = libc::pollfd {
         fd,
         events: libc::POLLIN,
         revents: 0,
     };
+    // Two states: hidden, or a popup open with input grabbed. The popup is
+    // driven entirely from this thread so the display stays single-owner.
+    let mut popup: Option<Popup> = None;
     loop {
         let pending = unsafe { xlib::XPending(display) };
         if pending <= 0 {
@@ -144,6 +154,11 @@ fn run(XDisplay(display): XDisplay, fd: c_int, keycode: c_uint, callback: Box<dy
                 continue;
             }
             if ready < 0 || poll.revents & libc::POLLHUP != 0 {
+                // The shortcut display ended: the popup window, grabs, and font
+                // all die with this connection, so only the Rust side stays.
+                if let Some(current) = popup.take() {
+                    current.abandon();
+                }
                 trace(format_args!("shortcut display connection ended"));
                 return;
             }
@@ -152,26 +167,87 @@ fn run(XDisplay(display): XDisplay, fd: c_int, keycode: c_uint, callback: Box<dy
         let mut event = xlib::XEvent { pad: [0; 24] };
         // SAFETY: XNextEvent writes the event before any read.
         unsafe { xlib::XNextEvent(display, &mut event) };
-        // Union reads stay safe: the type field is the first member of every variant.
-        if unsafe { event.type_ } != xlib::KeyPress {
-            continue;
+        match unsafe { event.type_ } {
+            xlib::KeyPress => {
+                // SAFETY: key events alias the key fields of the union.
+                let key = unsafe { event.key };
+                handle_key(display, keycode, &sessions, &mut popup, &key);
+            }
+            xlib::ButtonPress if popup.is_some() => {
+                // SAFETY: button events alias the button fields of the union.
+                let button = unsafe { event.button };
+                let outcome = popup
+                    .as_ref()
+                    .unwrap()
+                    .press_at(button.x_root, button.y_root);
+                handle(display, &sessions, &mut popup, outcome);
+            }
+            xlib::Expose if popup.is_some() => {
+                if let Some(current) = popup.as_ref() {
+                    current.draw(display);
+                }
+            }
+            _ => {}
         }
-        // The rest of the union members alias the key fields only for key events.
-        let (pressed, state) = unsafe { (event.key.keycode, event.key.state) };
-        if pressed != keycode {
-            continue;
-        }
-        if !state_is_super_shift(state) {
-            trace(format_args!(
-                "shortcut ignored: unexpected state={state:#x}"
-            ));
-            continue;
-        }
+    }
+}
+
+fn handle_key(
+    display: *mut xlib::Display,
+    keycode: c_uint,
+    sessions: &Sessions,
+    popup: &mut Option<Popup>,
+    key: &xlib::XKeyEvent,
+) {
+    if let Some(current) = popup.as_ref() {
+        let outcome = current.key(key);
+        handle(display, sessions, popup, outcome);
+        return;
+    }
+    if key.keycode == keycode && state_is_super_shift(key.state) {
         trace(format_args!("shortcut delivered"));
-        // Never unwind across the C event dispatcher.
-        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(&*callback)).is_err() {
-            eprintln!("Pi Watch shortcut handler failed");
+        match popup::open(display, sessions) {
+            Ok(opened) => *popup = Some(opened),
+            Err(code) => trace(format_args!("popup not opened: X status {code}")),
         }
+    }
+}
+
+fn handle(
+    display: *mut xlib::Display,
+    sessions: &Sessions,
+    popup: &mut Option<Popup>,
+    outcome: Outcome,
+) {
+    match outcome {
+        Outcome::StayOpen => {}
+        Outcome::Dismiss => {
+            trace(format_args!("popup dismissed"));
+            close(display, popup);
+        }
+        Outcome::Quit => {
+            trace(format_args!("popup requested quit"));
+            close(display, popup);
+            std::process::exit(0);
+        }
+        Outcome::Navigate(nav) => {
+            trace(format_args!("popup activated a completion"));
+            close(display, popup);
+            // Same bounded navigation as the tray rows: focus first, then
+            // acknowledge only on success.
+            let nav_sessions = sessions.clone();
+            focus::focus(
+                nav.target(),
+                move || monitor::acknowledge(&nav_sessions, nav.id(), nav.completed()),
+                || {},
+            );
+        }
+    }
+}
+
+fn close(display: *mut xlib::Display, popup: &mut Option<Popup>) {
+    if let Some(current) = popup.take() {
+        current.close(display);
     }
 }
 

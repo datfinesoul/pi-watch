@@ -145,6 +145,9 @@ fn quit_item() -> MenuItem<WatchTray> {
     item.into()
 }
 
+// Row building here deliberately duplicates the popup's snapshot builder in
+// popup.rs. The tray and popup stay in sync manually under the per-OS app
+// structure until question 76 settles the shared-core question.
 fn render(sessions: &Sessions) -> Vec<MenuItem<WatchTray>> {
     let Ok(state) = sessions.lock() else {
         return vec![label_item("Session state unavailable").into()];

@@ -6,16 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-10-31
+## [0.6.0] - 2026-10-31
 
 ### Added
 
 - A Linux tray companion app with menu parity with the macOS app: project groups, the Done — awaiting inspection section, elapsed times, pane titles, preview submenus, and pane navigation. The tray icon is the π glyph only.
-- Super+Shift+' on Linux, which focuses the most recent awaiting-inspection pane through an X11 key grab.
+- A Linux popup window for the session list, opened by Super+Shift+' from any app. It mirrors the tray menu content with a drawn status dot, elapsed time, and pane title per session, shows previews as a dim second line under their row, and supports digits 1–9 after the modifiers release, click navigation, and Escape or an outside click to dismiss. The popup uses an override-redirect X11 window with core calls only, a flat dark single-font style, and no preview submenus in this version.
 - `check:app` now validates the matching host: macOS checks plus bundle creation on macOS, Linux checks plus a release build on Linux. CI adds a Linux companion-app job on `ubuntu-24.04` with Rust 1.99.0.
 
 ### Changed
 
+- Super+Shift+' on Linux now opens the session list popup instead of jumping directly to the most recent awaiting-inspection pane, matching macOS. Rows and numbers freeze while the popup is open.
 - The reporting extension picks the IPC socket path per platform. Linux uses `~/.local/share/Pi Watch/events.sock` (honoring `$XDG_DATA_HOME` in the app); macOS keeps `~/Library/Application Support/Pi Watch/events.sock`.
 
 ## [0.4.0] - 2026-10-28

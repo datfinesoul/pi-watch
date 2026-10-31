@@ -1,5 +1,6 @@
 mod focus;
 mod monitor;
+mod popup;
 mod shortcut;
 mod tray;
 
@@ -7,9 +8,7 @@ fn main() {
     match monitor::start() {
         Ok((sessions, data_dir)) => {
             let sessions_for_shortcut = sessions.clone();
-            if let Err(error) = shortcut::register(move || {
-                focus::focus_most_recent(&sessions_for_shortcut);
-            }) {
+            if let Err(error) = shortcut::register(sessions_for_shortcut) {
                 eprintln!(
                     "Pi Watch could not register Super+Shift+' (X11 error {error}); use the tray menu instead"
                 );
