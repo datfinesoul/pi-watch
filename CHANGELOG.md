@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-31
+
+### Added
+
+- A Linux tray companion app with menu parity with the macOS app: project groups, the Done — awaiting inspection section, elapsed times, pane titles, preview submenus, and pane navigation. The tray icon is the π glyph only.
+- Super+Shift+' on Linux, which focuses the most recent awaiting-inspection pane through an X11 key grab.
+- `check:app` now validates the matching host: macOS checks plus bundle creation on macOS, Linux checks plus a release build on Linux. CI adds a Linux companion-app job on `ubuntu-24.04` with Rust 1.99.0.
+
+### Changed
+
+- The reporting extension picks the IPC socket path per platform. Linux uses `~/.local/share/Pi Watch/events.sock` (honoring `$XDG_DATA_HOME` in the app); macOS keeps `~/Library/Application Support/Pi Watch/events.sock`.
+
 ## [0.4.0] - 2026-10-28
 
 ### Added

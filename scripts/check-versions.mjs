@@ -8,16 +8,22 @@ export const root = fileURLToPath(new URL("../", import.meta.url));
 export function productVersions(directory = root) {
   const read = path => readFileSync(resolve(directory, path), "utf8");
   const packageJson = JSON.parse(read("package.json"));
-  const cargo = read("apps/macos/Cargo.toml").split(/^\[/m).find(section => section.startsWith("package]"));
-  const lock = read("apps/macos/Cargo.lock").split("[[package]]").find(section => /^name = "pi-watch"$/m.test(section));
+  const cargoManifest = path =>
+    read(path).split(/^\[/m).find(section => section.startsWith("package]"))
+      ?.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
+  const cargoLock = path =>
+    read(path).split("[[package]]").find(section => /^name = "pi-watch"$/m.test(section))
+      ?.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
   const plist = read("apps/macos/resources/Info.plist");
   const bundleVersion = key => plist.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]+)</string>`))?.[1];
   return {
     package: packageJson.version,
-    cargo: cargo?.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1],
-    lock: lock?.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1],
+    cargo: cargoManifest("apps/macos/Cargo.toml"),
+    lock: cargoLock("apps/macos/Cargo.lock"),
     bundle: bundleVersion("CFBundleShortVersionString"),
     build: bundleVersion("CFBundleVersion"),
+    linuxCargo: cargoManifest("apps/linux/Cargo.toml"),
+    linuxLock: cargoLock("apps/linux/Cargo.lock"),
   };
 }
 

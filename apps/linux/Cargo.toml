@@ -1,0 +1,16 @@
+[package]
+name = "pi-watch"
+version = "0.5.0"
+edition = "2024"
+license = "MIT"
+description = "Native Linux companion app for Pi Watch"
+repository = "https://github.com/datfinesoul/pi-watch"
+
+# Pure Rust dependencies only: the IPC state and tray protocol need no C build
+# toolchain. The X11 shortcut needs a libX11 symbol host at link time only.
+[dependencies]
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+x11 = { version = "2.21", features = ["xlib"] }

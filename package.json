@@ -1,7 +1,7 @@
 {
   "name": "@datfinesoul/pi-watch",
-  "version": "0.4.0",
-  "description": "A Pi extension with a native macOS companion app for monitoring session status across Kitty panes.",
+  "version": "0.5.0",
+  "description": "A Pi extension with native macOS and Linux companion apps for monitoring session status across Kitty panes.",
   "type": "module",
   "license": "MIT",
   "author": "Philip Hadviger <613305+datfinesoul@users.noreply.github.com>",
@@ -45,7 +45,8 @@
   },
   "acp": {
     "companionApps": [
-      { "platform": "darwin", "path": "apps/macos", "check": "check:app" }
+      { "platform": "darwin", "path": "apps/macos", "check": "check:app" },
+      { "platform": "linux", "path": "apps/linux", "check": "check:app" }
     ]
   }
 }

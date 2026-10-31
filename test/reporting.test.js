@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import test from "node:test";
-import { registerReporting, responsePreview } from "../src/reporting.js";
+import { ipcDirectory, registerReporting, responsePreview } from "../src/reporting.js";
 
 async function until(predicate) {
   const deadline = Date.now() + 2000;
@@ -27,11 +27,11 @@ async function fixture(t, options = {}) {
     socket.on("data", chunk => { data += chunk; });
     socket.on("end", () => reports.push(JSON.parse(data)));
   });
+  const env = { KITTY_WINDOW_ID: "123", KITTY_LISTEN_ON: "unix:/tmp/kitty-test.sock" };
   registerReporting({ on: (name, handler) => handlers.set(name, handler) }, {
-    home, env: { KITTY_WINDOW_ID: "123", KITTY_LISTEN_ON: "unix:/tmp/kitty-test.sock" },
-    pid: 42, runCommand: async () => "", ...options,
+    home, env, pid: 42, runCommand: async () => "", ...options,
   });
-  const directory = join(home, "Library/Application Support/Pi Watch");
+  const directory = ipcDirectory(home, env);
   async function listen() {
     await mkdir(directory, { recursive: true });
     await new Promise((resolve, reject) => {
@@ -50,6 +50,15 @@ async function fixture(t, options = {}) {
     start: (idle = true) => handlers.get("session_start")({}, { cwd: "/tmp/project", isIdle: () => idle }),
   };
 }
+
+test("the IPC socket directory follows the platform", () => {
+  const home = "/home/test-user";
+  assert.equal(ipcDirectory(home, {}, "darwin"), join(home, "Library/Application Support/Pi Watch"));
+  assert.equal(ipcDirectory(home, {}, "linux"), join(home, ".local/share/Pi Watch"));
+  assert.equal(ipcDirectory(home, { XDG_DATA_HOME: "/custom/data" }, "linux"), join("/custom/data", "Pi Watch"));
+  // The app ignores a non-absolute XDG_DATA_HOME, like the Rust app does.
+  assert.equal(ipcDirectory(home, { XDG_DATA_HOME: "relative" }, "linux"), join(home, ".local/share/Pi Watch"));
+});
 
 const fields = ["version", "id", "cwd", "pid", "kitty_window_id", "kitty_listen_on", "kitty_focused", "project_label", "kitty_title", "status"].sort();
 

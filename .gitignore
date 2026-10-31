@@ -4,3 +4,4 @@ node_modules/
 coverage/
 /target/
 /dist/
+/apps/*/target/

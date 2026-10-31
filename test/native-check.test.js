@@ -8,10 +8,10 @@ test("native validation fails clearly for missing tools or an unsupported host",
     cwd: root, env: { ...process.env, PATH: "" }, encoding: "utf8",
   });
   assert.equal(result.status, 1);
-  if (process.platform === "darwin") {
+  if (process.platform === "darwin" || process.platform === "linux") {
     assert.match(result.stderr, /Native validation failed:.*ENOENT/);
     assert.match(result.stdout, /cargo fmt/);
   } else {
-    assert.match(result.stderr, /requires macOS.*Native validation was not run/);
+    assert.match(result.stderr, /requires macOS or Linux.*Native validation was not run/);
   }
 });

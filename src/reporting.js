@@ -29,6 +29,14 @@ export function responsePreview(content) {
 }
 
 const execute = promisify(execFile);
+
+// The directory must match the companion app built for this platform.
+export function ipcDirectory(home, env = {}, platform = process.platform) {
+  if (platform === "darwin") return join(home, "Library/Application Support/Pi Watch");
+  const data = env.XDG_DATA_HOME;
+  const base = typeof data === "string" && data.startsWith("/") ? data : join(home, ".local/share");
+  return join(base, "Pi Watch");
+}
 async function command(file, args, cwd) {
   try {
     const { stdout } = await execute(file, args, { cwd, timeout: 1000, maxBuffer: 128 * 1024 });
@@ -41,7 +49,7 @@ export function registerReporting(pi, {
   home = homedir(), env = process.env, pid = process.pid,
   runCommand = command, heartbeatMs = 5000,
 } = {}) {
-  const path = join(home, "Library/Application Support/Pi Watch/events.sock");
+  const path = join(ipcDirectory(home, env), "events.sock");
   let id = "";
   let cwd = "";
   let project = null;
