@@ -210,6 +210,31 @@ test("settlement publishes pending state and the next prompt or shutdown withdra
   assert.equal(fixtureFiles(f).includes(""), false, "shutdown removes the state file");
 });
 
+test("a pane already focused when the run ended stays pending until the user returns", async t => {
+  let paneFocused = true;
+  const kittyOutput = () => JSON.stringify([{
+    is_focused: true,
+    tabs: [{ is_focused: true, windows: [{ id: 123, title: "pane", is_focused: paneFocused }] }],
+  }]);
+  const f = await fixture(t, {
+    heartbeatMs: 20,
+    runCommand: async (file, args) => (file === "kitty" && args.includes("ls") ? kittyOutput() : ""),
+  });
+  await f.listen();
+  await f.start();
+  f.handlers.get("agent_start")({});
+  f.handlers.get("agent_settled")({});
+  assert.equal(ownState(f).pending, true, "settlement publishes pending");
+  await pause(100);
+  assert.equal(ownState(f).pending, true, "focus at settlement is not inspection");
+  paneFocused = false;
+  await pause(100);
+  assert.equal(ownState(f).pending, true, "leaving the pane keeps pending");
+  paneFocused = true;
+  await until(() => ownState(f).pending === false);
+  assert.equal(ownState(f).pending, false, "returning to the pane clears pending");
+});
+
 test("the widget shows other pending sessions and navigation cycles their panes with ctrl+'", async t => {
   const kittyCalls = [];
   const f = await fixture(t, {

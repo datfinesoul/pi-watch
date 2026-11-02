@@ -149,15 +149,25 @@ export function registerReporting(pi, {
       if (instance === id) {
         project = projectLabel(directory, root, superRoot, !!submodules);
         title = next.title;
+        const reached = previousFocus === false && next.focused === true;
+        previousFocus = next.focused;
         focused = next.focused;
-        // Visiting the pane counts as inspection, matching the app.
-        if (pending && next.focused) publishPending(false);
+        // Visiting the pane counts as inspection, matching the app. Only a
+        // change from unfocused to focused after the run ended counts, so a
+        // pane that was already focused when it settled stays pending.
+        if (pending && reached) {
+          pending = false;
+          publishPending(false);
+        }
       }
     } finally { refreshing = false; }
   }
   // Pending means this session ended a run and nobody inspected it yet.
   // The marker is a quiet one-line widget; it never takes focus or keys.
   let pending = false;
+  // Focus is sampled on each heartbeat. Only a change from unfocused to
+  // focused shows that the user reached the pane after the run ended.
+  let previousFocus = null;
   let preview = null;
   let status = "idle";
   let timer;
@@ -193,6 +203,7 @@ export function registerReporting(pi, {
     project = null;
     title = null;
     focused = null;
+    previousFocus = null;
     refreshWidget(ctx);
     publishPending(false);
     const instance = id;
