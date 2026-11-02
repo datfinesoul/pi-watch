@@ -3,26 +3,19 @@ import { checkVersions, root } from "./check-versions.mjs";
 import { resolve } from "node:path";
 
 const platform = process.platform;
-if (platform !== "darwin" && platform !== "linux") {
-  console.error("The Pi Watch app requires macOS or Linux. Native validation was not run.");
+if (platform !== "darwin") {
+  console.error("The Pi Watch app requires macOS. Native validation was not run.");
   process.exit(1);
 }
 
-const manifest = platform === "darwin" ? "apps/macos/Cargo.toml" : "apps/linux/Cargo.toml";
+const manifest = "apps/macos/Cargo.toml";
 // macOS validates the optional popovers feature and creates a signed bundle.
-// Linux has no optional features and ships a plain cargo release binary.
-const checks = platform === "darwin" ? [
+const checks = [
   ["cargo", ["fmt", "--manifest-path", manifest, "--check"]],
   ["cargo", ["clippy", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"]],
   ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features"]],
   ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets"]],
   ["sh", ["scripts/bundle.sh"]],
-] : [
-  ["cargo", ["fmt", "--manifest-path", manifest, "--check"]],
-  ["cargo", ["clippy", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"]],
-  ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features"]],
-  ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets"]],
-  ["cargo", ["build", "--manifest-path", manifest, "--locked", "--release"]],
 ];
 
 try {

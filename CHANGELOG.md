@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-11-02
+
+### Changed
+
+- Pi Watch is the reporting extension plus the macOS menu bar app. The Linux tray app is removed, so no companion app runs on Linux. The extension sends no reports on Linux, and it keeps the session state files, the in-session widget, and ctrl+' navigation there.
+
+### Added
+
+- Cross-session pending awareness: each reporting Pi session publishes a one-line state file (version, pid, pending flag, Kitty window id) under `$XDG_STATE_HOME/pi-watch/sessions/`, removes it on shutdown, and sweeps stale files with a pid-liveness probe. A reporting session shows `◇ N done elsewhere — ctrl+' switch` above the editor while N other sessions await inspection, and ctrl+' (legacy BEL and Kitty-protocol CSI forms) focuses the next one with `kitty @ focus-window`. The key is consumed only while other sessions await. Extension-local: no notifications, popups, global grabs, or report changes.
+
+### Removed
+
+- The Linux tray companion app, its session-list popup window, and its Super+Shift+' X11 shortcut. `check:app` and the product version check now cover macOS only, and CI no longer runs a Linux app job.
 
 ## [0.6.0] - 2026-10-31
 

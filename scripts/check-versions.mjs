@@ -22,8 +22,6 @@ export function productVersions(directory = root) {
     lock: cargoLock("apps/macos/Cargo.lock"),
     bundle: bundleVersion("CFBundleShortVersionString"),
     build: bundleVersion("CFBundleVersion"),
-    linuxCargo: cargoManifest("apps/linux/Cargo.toml"),
-    linuxLock: cargoLock("apps/linux/Cargo.lock"),
   };
 }
 

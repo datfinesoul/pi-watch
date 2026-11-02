@@ -8,14 +8,14 @@ import { checkVersions, productVersions, root } from "../scripts/check-versions.
 test("extension, Cargo manifests, lockfiles, and app bundle share one product version", () => {
   const versions = productVersions();
   assert.equal(checkVersions(), versions.package);
-  assert.equal(Object.keys(versions).length, 7);
+  assert.equal(Object.keys(versions).length, 5);
 });
 
 test("version validation detects drift in every native version field", t => {
   const directory = mkdtempSync(join(tmpdir(), "pi-watch-versions-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(join(directory, "apps/macos/resources"), { recursive: true });
-  for (const file of ["package.json", "apps/macos/Cargo.toml", "apps/macos/Cargo.lock", "apps/macos/resources/Info.plist", "apps/linux/Cargo.toml", "apps/linux/Cargo.lock"]) {
+  for (const file of ["package.json", "apps/macos/Cargo.toml", "apps/macos/Cargo.lock", "apps/macos/resources/Info.plist"]) {
     cpSync(join(root, file), join(directory, file));
   }
   const version = checkVersions(directory);
@@ -24,8 +24,6 @@ test("version validation detects drift in every native version field", t => {
     ["apps/macos/Cargo.lock", `name = "pi-watch"\nversion = "${version}"`],
     ["apps/macos/resources/Info.plist", `<key>CFBundleShortVersionString</key><string>${version}</string>`],
     ["apps/macos/resources/Info.plist", `<key>CFBundleVersion</key><string>${version}</string>`],
-    ["apps/linux/Cargo.toml", `version = "${version}"`],
-    ["apps/linux/Cargo.lock", `name = "pi-watch"\nversion = "${version}"`],
   ];
   for (const [file, text] of drift) {
     const path = join(directory, file);
