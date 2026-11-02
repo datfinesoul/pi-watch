@@ -6,36 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-
-- The `◇ N done elsewhere` marker no longer disappears while you are still in the finished pane. A session clears its pending state only after a heartbeat sees its pane change from unfocused to focused, or after a new prompt. The pending flag also no longer stays set after that clear.
-
-## [0.7.0] - 2026-11-02
-
-### Changed
-
-- Pi Watch is the reporting extension plus the macOS menu bar app. The Linux tray app is removed, so no companion app runs on Linux. The extension sends no reports on Linux, and it keeps the session state files, the in-session widget, and ctrl+' navigation there.
+## [0.5.0] - 2026-11-03
 
 ### Added
 
-- Cross-session pending awareness: each reporting Pi session publishes a one-line state file (version, pid, pending flag, Kitty window id) under `$XDG_STATE_HOME/pi-watch/sessions/`, removes it on shutdown, and sweeps stale files with a pid-liveness probe. A reporting session shows `◇ N done elsewhere — ctrl+' switch` above the editor while N other sessions await inspection, and ctrl+' (legacy BEL and Kitty-protocol CSI forms) focuses the next one with `kitty @ focus-window`. The key is consumed only while other sessions await. Extension-local: no notifications, popups, global grabs, or report changes.
-
-### Removed
-
-- The Linux tray companion app, its session-list popup window, and its Super+Shift+' X11 shortcut. `check:app` and the product version check now cover macOS only, and CI no longer runs a Linux app job.
-
-## [0.6.0] - 2026-10-31
-
-### Added
-
-- A Linux tray companion app with menu parity with the macOS app: project groups, the Done — awaiting inspection section, elapsed times, pane titles, preview submenus, and pane navigation. The tray icon is the π glyph only.
-- A Linux popup window for the session list, opened by Super+Shift+' from any app. It mirrors the tray menu content with a drawn status dot, elapsed time, and pane title per session, shows previews as a dim second line under their row, and supports digits 1–9 after the modifiers release, click navigation, and Escape or an outside click to dismiss. The popup uses an override-redirect X11 window with core calls only, a flat dark single-font style, and no preview submenus in this version.
-- `check:app` now validates the matching host: macOS checks plus bundle creation on macOS, Linux checks plus a release build on Linux. CI adds a Linux companion-app job on `ubuntu-24.04` with Rust 1.99.0.
-
-### Changed
-
-- Super+Shift+' on Linux now opens the session list popup instead of jumping directly to the most recent awaiting-inspection pane, matching macOS. Rows and numbers freeze while the popup is open.
-- The reporting extension picks the IPC socket path per platform. Linux uses `~/.local/share/Pi Watch/events.sock` (honoring `$XDG_DATA_HOME` in the app); macOS keeps `~/Library/Application Support/Pi Watch/events.sock`.
+- Cross-session pending awareness: each reporting Pi session publishes a one-line state file under `$XDG_STATE_HOME/pi-watch/sessions/`. The file holds the version, the pid, the pending flag, and the Kitty window id. A session removes its file on shutdown, and a pid-liveness probe sweeps stale files. A reporting session shows `◇ N done elsewhere — ctrl+' switch` above the editor while N other sessions await inspection. The extension consumes ctrl+' (legacy BEL and Kitty-protocol CSI forms) only while other sessions await, and focuses the next one with `kitty @ focus-window`. This is extension-local: no notifications, popups, global grabs, or report changes.
+- A session clears its pending state on a new prompt, on shutdown, or when a heartbeat sees its pane change from unfocused to focused. A pane that was already focused when its run ended stays pending until you leave and return.
 
 ## [0.4.0] - 2026-10-28
 
