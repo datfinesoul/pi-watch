@@ -72,7 +72,7 @@ source "$HOME/.cargo/env"
 rustup show
 ```
 
-If your distribution already provides Rust 1.99.0 or newer, install it from system packages instead. Use a new terminal after installation, or run the `source` command shown above first.
+If your system package manager already provides Rust 1.99.0 or newer, install it from there instead. Use a new terminal after installation, or run the `source` command shown above first.
 
 ```sh
 git clone https://github.com/datfinesoul/pi-watch.git

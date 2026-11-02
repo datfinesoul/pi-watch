@@ -111,7 +111,7 @@ test("lifecycle uses final settlement, reports only allowed fields, and shuts do
 
 test("a platform without a companion app publishes state and sends no reports", async t => {
   const f = await fixture(t, { platform: "linux" });
-  // A listener at the former Linux path must receive nothing.
+  // The extension must not fall back to a Linux socket path.
   await f.listen(join(f.home, ".local/share/Pi Watch"));
   await f.start();
   f.handlers.get("agent_start")({});
