@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-03
+
+### Added
+
+- Cross-session pending awareness: each reporting Pi session publishes a one-line state file under `$XDG_STATE_HOME/pi-watch/sessions/`. The file holds the version, the pid, the pending flag, and the Kitty window id. A session removes its file on shutdown, and a pid-liveness probe sweeps stale files. A reporting session shows `◇ N done elsewhere — ctrl+' switch` above the editor while N other sessions await inspection. The extension consumes ctrl+' (legacy BEL and Kitty-protocol CSI forms) only while other sessions await, and focuses the next one with `kitty @ focus-window`. This is extension-local: no notifications, popups, global grabs, or report changes.
+- A session clears its pending state on a new prompt, on shutdown, or when a heartbeat sees its pane change from unfocused to focused. A pane that was already focused when its run ended stays pending until you leave and return.
+
 ## [0.4.0] - 2026-10-28
 
 ### Added

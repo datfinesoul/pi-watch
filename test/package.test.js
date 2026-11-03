@@ -36,7 +36,7 @@ test("installed Pi loads the packaged entry point without opening sockets or sta
   assert.equal(loaded.extensions.length, 1);
   const extension = loaded.extensions[0];
   assert.deepEqual([...extension.handlers.keys()].sort(), [
-    "session_start", "before_agent_start", "agent_start", "agent_settled", "session_shutdown",
+    "session_start", "before_agent_start", "agent_start", "message_end", "agent_settled", "session_shutdown",
   ].sort());
   assert.equal(extension.commands.size, 0);
   assert.equal(extension.tools.size, 0);

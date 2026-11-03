@@ -40,8 +40,8 @@ On macOS, run `npm run check:app` for native formatting, linting, tests, and bun
 3. Keep the extension dependency-free unless a dependency provides clear value that cannot reasonably be implemented with the Node.js standard library.
 4. Update the README and changelog when user-visible behavior changes.
 5. Run `npm test` and `npm run pack:check`, or the `pnpm` equivalents.
-6. Run `npm run check:app` on macOS and report any unrun manual desktop checks.
-7. Keep the product version consistent in `package.json`, Cargo metadata, the lockfile, and both app bundle version fields. Keep IPC protocol versions independent.
+6. Run `npm run check:app` on the matching host and report any unrun manual desktop checks.
+7. Keep the product version consistent in `package.json`, the macOS Cargo manifest and lockfile, and the macOS bundle version fields. Keep IPC protocol versions independent.
 
 ## Pull requests
 

@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A [Pi](https://github.com/earendil-works/pi) reporting extension with a native macOS menu bar companion app. Pi Watch shows active and idle sessions across Kitty panes, groups them by project, and lets you return to a pane. It uses Rust and AppKit, not a webview, transcript scanner, or model calls.
+A [Pi](https://github.com/earendil-works/pi) reporting extension with a native macOS menu bar companion app. Pi Watch shows active and idle sessions across Kitty panes, groups them by project, and lets you return to a pane. It uses Rust with AppKit on macOS, not a webview, transcript scanner, or model calls.
 
 ## Installation
 
@@ -58,7 +58,21 @@ Use an absolute extension path outside the checkout. The control plane already l
 
 Pi installation loads only the reporting extension. It does not build, install, or start the app. A stopped or missing app does not prevent Pi from working.
 
-The app currently supports macOS. Kitty is required for pane navigation. Linux support and prebuilt downloads are deferred. Build the app from a repository checkout with Node.js 22.19+, Rust 1.99.0+, and Apple command-line build tools. CI uses Rust 1.99.0 and `macos-15`. The same Rust sources serve Intel and Apple Silicon, but each build targets its host architecture. No universal binary or cross-architecture distribution is provided.
+The app supports macOS, and Kitty is required for pane navigation. Prebuilt downloads are deferred. Build the app from a repository checkout.
+
+The macOS app is a menu bar item built with Rust and AppKit. Building it needs Apple command-line build tools. CI uses Rust 1.99.0 and `macos-15`. The same Rust sources serve Intel and Apple Silicon, but each build targets its host architecture. No universal binary or cross-architecture distribution is provided.
+
+#### Prerequisites
+
+Building the app from a checkout needs Node.js 22.19 or newer, Rust 1.99.0 or newer, and the Apple command-line build tools. Install Rust 1.99.0 with rustup, which gives the same toolchain version that CI uses:
+
+```sh
+curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.99.0 -y
+source "$HOME/.cargo/env"
+rustup show
+```
+
+If your system package manager already provides Rust 1.99.0 or newer, install it from there instead. Use a new terminal after installation, or run the `source` command shown above first.
 
 ```sh
 git clone https://github.com/datfinesoul/pi-watch.git
@@ -72,7 +86,9 @@ This creates `dist/Pi Watch.app` with a local ad-hoc signature. It is not Develo
 make open
 ```
 
-To install a copy for your user, quit the running app before replacing it:
+#### Build and install on macOS
+
+`make build` creates `dist/Pi Watch.app` under the checkout. To install a copy for your user, quit the running app before replacing it:
 
 ```sh
 mkdir -p "$HOME/Applications"
@@ -80,9 +96,11 @@ ditto "dist/Pi Watch.app" "$HOME/Applications/Pi Watch.app"
 open "$HOME/Applications/Pi Watch.app"
 ```
 
-App installation and startup are explicit steps. No launch-at-login entry or background service is installed. A later full release will provide prebuilt apps after distribution and signing requirements are settled.
+App installation and startup are explicit steps. No launch-at-login entry or background service is installed. A later full release will provide a prebuilt app after distribution and signing requirements are settled.
 
-To remove an installed app, quit Pi Watch and remove `~/Applications/Pi Watch.app`. Remove a checkout build by removing `dist/Pi Watch.app`. To remove the extension, use the source you installed, with `--local` for project installations:
+To remove an installed macOS app, quit Pi Watch and remove `~/Applications/Pi Watch.app`. Remove a macOS checkout build by removing `dist/Pi Watch.app`.
+
+To remove the reporting extension, use the source you installed, with `--local` for project installations:
 
 ```sh
 pi remove git:github.com/datfinesoul/pi-watch
@@ -96,17 +114,37 @@ For local installations, substitute `/path/to/pi-watch` as the source. Run `/rel
 
 Start the app, then load the reporting extension in each Pi session you want to monitor. Sessions without Kitty still report status, but pane navigation is unavailable.
 
-The menu bar prioritizes completed sessions awaiting inspection. It shows `π N` when unseen active-to-idle transitions exist, even if other sessions remain active. Otherwise, it shows `π ●` while sessions work, or `π` when all sessions are idle. Disconnected sessions do not affect these indicators.
+The macOS menu bar title shows `π N` when unseen active-to-idle transitions exist, even if other sessions remain active. Otherwise, it shows `π ●` while sessions work, or `π` when all sessions are idle. Disconnected sessions do not affect these indicators. The menu prioritizes completed sessions awaiting inspection.
 
 Open the menu for a **Done — awaiting inspection** section, followed by remaining sessions grouped by working directory. Rows show status duration and Kitty pane titles. Git labels use forms such as `↳/superproject/repo/src` or `repo/src`. Non-Git directories use their directory name, and pane numbers replace unavailable titles. Process IDs do not appear in the interface.
 
-Click a session to focus its Kitty pane and activate Kitty on macOS. Rows without a pane ID or socket endpoint remain disabled. Successful navigation clears that session's unseen completion. Opening the menu alone does not clear completions. Manual navigation clears a completion when Kitty reports focus, normally within five seconds. Failed navigation leaves the completion pending.
+Click a session to focus its Kitty pane. On macOS this also activates the Kitty application. Rows without a pane ID or socket endpoint remain disabled. Successful navigation clears that session's unseen completion. Opening the menu alone does not clear completions. Manual navigation clears a completion when Kitty reports focus, normally within five seconds. Failed navigation leaves the completion pending.
 
-Configure Kitty remote control outside Pi. Start reporting Pi processes inside Kitty with `KITTY_WINDOW_ID` and a Unix `KITTY_LISTEN_ON` endpoint. Prefer socket-only access in a user-owned directory with mode `0700`. Pi Watch does not configure Kitty or discover another endpoint. The app searches `/Applications/kitty.app` and `~/Applications/kitty.app`. Command failures appear on standard error.
+In any reporting Pi session, a small line `◇ N done elsewhere — ctrl+' switch` appears above the editor when N other sessions await inspection, and disappears when none do. Each session writes its own one-line state file in `$XDG_STATE_HOME/pi-watch/sessions/` (`~/.local/state/pi-watch/sessions` by default) with only version, pid, pending flag, and Kitty window id, removes it on shutdown, and reads the other files on its next heartbeat. Stale files are swept with a pid-liveness probe. The widget is extension-local state: it changes no reports, never takes focus, and appears only in interactive sessions.
+
+Press **ctrl+'** (legacy BEL or its Kitty-protocol CSI forms) in any reporting session to focus the next session awaiting inspection with the same `kitty @ focus-window` navigation the app menu uses, cycling across panes. The key is consumed only while other sessions await; ordinary keys pass through. A session clears its pending state on a heartbeat that sees its pane change from unfocused to focused, or when you send a new prompt. A pane that was already focused when its run ended stays pending until you leave and return.
+
+Configure Kitty remote control outside Pi. Start reporting Pi processes inside Kitty with `KITTY_WINDOW_ID` and a Unix `KITTY_LISTEN_ON` endpoint. Prefer socket-only access in a user-owned directory with mode `0700`. Pi Watch does not configure Kitty or discover another endpoint. On macOS, the app searches `/Applications/kitty.app` and `~/Applications/kitty.app`. The extension runs `kitty` through `PATH`. Command failures appear on standard error.
+
+To enable remote control, add these lines to `~/.config/kitty/kitty.conf`:
+
+```conf
+allow_remote_control socket
+listen_on unix:${HOME}/.local/share/kitty/pi-watch.sock
+```
+
+Kitty accepts requests that arrive over the socket and confirms requests typed in the terminal with a password. Kitty does not create the parent directory: `listen_on` is reported invalid and ignored while the directory is missing. Prepare a user-owned directory with mode `0700`, then restart Kitty:
+
+```sh
+mkdir -p "$HOME/.local/share/kitty"
+chmod 0700 "$HOME/.local/share/kitty"
+```
+
+Kitty appends the Kitty process ID to the socket file name, so each Kitty instance uses its own socket. If kitty reports `Invalid listen_on=..., ignoring`, the directory does not exist yet. Start the reporting Pi session inside Kitty so that its environment contains `KITTY_WINDOW_ID` and `KITTY_LISTEN_ON`. Read the `Kitty remote control` section of the Kitty documentation for the full details.
 
 Use **Quit Pi Watch** to exit. Only one app instance can own the reporting socket. Menu content refreshes once per second during the normal app run loop. Close and reopen a menu that stays open across a status change.
 
-Popovers remain disabled by default behind the Cargo feature `popovers`. To try them, stop the bundled app, then run:
+Popovers remain disabled by default behind the Cargo feature `popovers`. This optional feature is macOS only. To try them, stop the bundled app, then run:
 
 ```sh
 CARGO_TARGET_DIR="$PWD/target" cargo run --manifest-path apps/macos/Cargo.toml --features popovers
@@ -116,9 +154,11 @@ Popovers appear after active-to-idle transitions and close after about five seco
 
 ## Keyboard shortcut
 
-Press **Cmd+Shift+'** to open the menu from another app. Release the modifiers, then press **1–9** to activate a numbered completion. Only the first nine navigable completions receive numbers. Other rows remain accessible with the mouse or arrow keys. Press **Escape** to dismiss the menu.
+On macOS, press **Cmd+Shift+'** to open the menu from another app. Release the modifiers, then press **1–9** to activate a numbered completion. Only the first nine navigable completions receive numbers. Other rows remain accessible with the mouse or arrow keys. Press **Escape** to dismiss the menu. It uses the physical ANSI quote key, which can have another label on non-US layouts. It uses macOS hotkey registration, not a keyboard monitor, and requires no Input Monitoring permission.
 
-Menu rows and numbers remain fixed while the menu is open. Close and reopen it to see new completions. The shortcut uses the physical ANSI quote key, which can have another label on non-US layouts. It uses macOS hotkey registration, not a keyboard monitor, and requires no Input Monitoring permission. If registration fails, the app logs the macOS error to standard error. Mouse navigation remains available.
+On Linux, no companion app exists, so there is no menu and no global shortcut. Inside reporting Pi sessions, ctrl+' navigates to sessions that await inspection (see [Usage](#usage)). That keybinding is extension-local and never grabs keys globally.
+
+Menu rows and numbers remain fixed while the menu is open. Close and reopen it to see new completions. A parsing or delivery failure never disables mouse navigation.
 
 ## How it works
 
@@ -138,7 +178,7 @@ Highlight a session and press Right Arrow to open its submenu. The submenu shows
 
 The extension extracts at most 240 Unicode characters from each end of completed assistant text. It sends only these fragments through local IPC. Previews stay in memory and are not logged or persisted. The extension does not inspect stored transcripts, prompts, thinking content, tool arguments, tool output, or credentials. It makes no model calls. Reports remain in app memory, and there is no network listener. The extension uses `git` and `kitty` from Pi's `PATH`. Missing commands produce fallback labels and unknown focus rather than stopping status reporting.
 
-IPC uses `~/Library/Application Support/Pi Watch/events.sock` in a user-owned directory with mode `0700`. The socket uses mode `0600`. The app limits frames to 8 KiB and registry entries to 512. Clients have a short read timeout. An `app.lock` file prevents concurrent app instances from replacing each other's sockets. The socket may remain after exit. The app replaces it on startup. These are native app runtime paths, not extension configuration layers. No user configuration files are currently read.
+The app receives reports on `~/Library/Application Support/Pi Watch/events.sock`, in a user-owned directory with mode `0700`. The extension reports on macOS only, so no report is sent on a platform without a companion app. The socket uses mode `0600`. The app limits frames to 8 KiB and registry entries to 512. Clients have a short read timeout. An `app.lock` file prevents concurrent app instances from replacing each other's sockets. The socket may remain after exit. The app replaces it on startup. These are native app runtime paths, not extension configuration layers. No user configuration files are currently read.
 
 Any process running as the same user can submit status. Kitty remote control permits more than pane focusing. Pi Watch is not a security boundary against malicious software under your account. See [SECURITY.md](SECURITY.md).
 
@@ -159,13 +199,13 @@ npm run pack:check
 
 Use `pnpm test` and `pnpm run pack:check` with pnpm. The tests cover metadata parsing, lifecycle events, privacy fields, missing-app recovery, heartbeat cleanup, package contents, and shared versions. Set `PI_CODING_AGENT_ENTRY` to an installed Pi `dist/index.js` to also test the packaged entry point through Pi's loader. That optional test makes no model requests and does not start the app or reporting timers.
 
-Run all native deterministic checks on macOS:
+Run the native deterministic checks on macOS:
 
 ```sh
 npm run check:app
 ```
 
-This runs Rust formatting, Clippy, tests for default and optional features, and a release bundle build with signature verification. Missing required tools fail the check. It never launches or restarts the app. `make check` runs extension tests, package checks, and native checks together. The control plane's full readiness invokes these checks on macOS and warns about incomplete native validation elsewhere.
+This runs Rust formatting, Clippy, tests for default and optional features, and a release bundle build with signature verification. Missing required tools fail the check. It never launches or restarts the app. `make check` runs extension tests, package checks, and native checks together. The control plane's full readiness runs these checks on macOS and warns about incomplete native validation elsewhere.
 
 Use the root Makefile for app development:
 
@@ -189,7 +229,7 @@ make -C pi-watch restart-debug
 make -C pi-watch restart-debug DEBUG_LOG=/tmp/pi-watch-debug.log
 ```
 
-Reproduce the problem, then quit Pi Watch through its menu. The log includes the process ID, relative times, Carbon event timestamps, dismissal cutoff, callback guards, and menu delegate events. It also records report receipt, report rejection categories, preview presence, fragment character counts, and preview state when the menu opens. It excludes session titles, paths, prompts, and response text. Remove the log when it is no longer needed. Start the app normally without the environment variable to disable logging.
+Reproduce the problem, then quit Pi Watch through its menu. The log includes the process ID, relative times, Carbon event timestamps, dismissal cutoff, callback guards, and menu delegate events. It also records report receipt, report rejection categories, preview presence, fragment character counts, and preview state when the menu renders. The log excludes session titles, paths, prompts, and response text. Remove the log when it is no longer needed. Start the app normally without the environment variable to disable logging.
 
 ### Manual desktop checks
 
@@ -208,7 +248,7 @@ Automated checks do not check AppKit placement, desktop focus behavior, or live 
 
 Every pull request that triggers CI must bump `version` in `package.json` and move the `Unreleased` changelog entries under a matching `## [<version>] - <date>` heading; CI fails otherwise. Pull requests that change only Markdown skipped by CI are exempt. After the merge to `main` passes CI, the Release workflow tags that commit `v<version>`. Merges that do not change the version are not tagged.
 
-Update Cargo metadata, the Cargo lockfile, and both app bundle version fields to match the product version. `npm test` and bundling reject version drift. The initial adoption PR validates the new version without requiring a previous package manifest. The source-only Release workflow creates no downloadable app or GitHub release. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+Update `package.json`, the macOS Cargo manifest and lockfile, and the macOS bundle version fields together with the product version. `npm test` and bundling reject version drift. The initial adoption PR validates the new version without requiring a previous package manifest. The source-only Release workflow creates no downloadable app or GitHub release. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 

@@ -2,22 +2,25 @@ import { spawnSync } from "node:child_process";
 import { checkVersions, root } from "./check-versions.mjs";
 import { resolve } from "node:path";
 
-if (process.platform !== "darwin") {
+const platform = process.platform;
+if (platform !== "darwin") {
   console.error("The Pi Watch app requires macOS. Native validation was not run.");
   process.exit(1);
 }
 
+const manifest = "apps/macos/Cargo.toml";
+// macOS validates the optional popovers feature and creates a signed bundle.
+const checks = [
+  ["cargo", ["fmt", "--manifest-path", manifest, "--check"]],
+  ["cargo", ["clippy", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"]],
+  ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features"]],
+  ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets"]],
+  ["sh", ["scripts/bundle.sh"]],
+];
+
 try {
   checkVersions();
   const env = { ...process.env, CARGO_TARGET_DIR: resolve(root, "target") };
-  const manifest = "apps/macos/Cargo.toml";
-  const checks = [
-    ["cargo", ["fmt", "--manifest-path", manifest, "--check"]],
-    ["cargo", ["clippy", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"]],
-    ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets", "--all-features"]],
-    ["cargo", ["test", "--manifest-path", manifest, "--locked", "--all-targets"]],
-    ["sh", ["scripts/bundle.sh"]],
-  ];
   for (const [command, args] of checks) {
     console.log(`\n> ${command} ${args.join(" ")}`);
     const result = spawnSync(command, args, { cwd: root, env, stdio: "inherit" });
