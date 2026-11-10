@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectLabel, paneMetadata, paneTitle } from "../src/metadata.js";
+import { projectLabel, paneMetadata, paneTitle } from "../src/metadata.ts";
 
 test("project labels distinguish superprojects, submodules, standalone repositories, and non-Git directories", () => {
   assert.equal(projectLabel("/work/super/repo/src", "/work/super/repo", "/work/super", false), "↳/super/repo/src");

@@ -15,7 +15,7 @@ function packageFiles() {
 
 test("the extension package contains its helpers but no native code, output, or dev harnesses", () => {
   const files = packageFiles();
-  for (const required of ["package.json", "extensions/watch/index.ts", "src/reporting.js", "src/metadata.js", "LICENSE", "README.md", "CHANGELOG.md"]) {
+  for (const required of ["package.json", "extensions/watch/index.ts", "src/reporting.ts", "src/metadata.ts", "LICENSE", "README.md", "CHANGELOG.md"]) {
     assert.ok(files.includes(required), `missing ${required}`);
   }
   assert.ok(files.every(file => !/^(apps|target|dist|scripts|test)\//.test(file)), files.join("\n"));

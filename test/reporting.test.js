@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as pause } from "node:timers/promises";
 import test from "node:test";
-import { ipcDirectory, registerReporting, responsePreview, stateDirectory } from "../src/reporting.js";
+import { ipcDirectory, registerReporting, responsePreview, stateDirectory } from "../src/reporting.ts";
 
 async function until(predicate) {
   const deadline = Date.now() + 2000;
