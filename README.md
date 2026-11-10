@@ -188,7 +188,7 @@ The extension and app share one product version. The IPC protocol has its own ve
 
 ## Development
 
-The extension requires no runtime dependencies beyond the Pi host and has no build step. The app has separate Cargo dependencies and a locked native build. The extension's npm package excludes native sources, binaries, and development scripts. Obtain app sources from this repository rather than the npm package.
+The extension requires no runtime dependencies beyond the Pi host and has no build step. Runtime helpers use `.ts` files so `/reload` can refresh imported logic. Node.js imports these helpers directly in unit tests. The app has separate Cargo dependencies and a locked native build. The extension's npm package excludes native sources, binaries, and development scripts. Obtain app sources from this repository rather than the npm package.
 
 Run the extension tests and inspect the package with npm or pnpm:
 
@@ -246,7 +246,7 @@ Automated checks do not check AppKit placement, desktop focus behavior, or live 
 - [ ] Restarting the app restores reporting through heartbeats.
 - [ ] The default build has no popovers, and the optional-feature build behaves as documented when tested.
 
-Every pull request that triggers CI must bump `version` in `package.json` and move the `Unreleased` changelog entries under a matching `## [<version>] - <date>` heading; CI fails otherwise. Pull requests that change only Markdown skipped by CI are exempt. After the merge to `main` passes CI, the Release workflow tags that commit `v<version>`. Merges that do not change the version are not tagged.
+Each feature branch that triggers CI gets one version update relative to its base. Keep that version unchanged throughout the branch. Record subsequent user-visible changes under the same matching `## [<version>] - <date>` changelog heading. Do not increment the patch version for each edit, fix, or conversation turn. CI requires the branch version to exceed its base version. Pull requests that change only Markdown skipped by CI are exempt. After merge and successful CI, the Release workflow tags the tested commit `v<version>`. Merges that do not change the version are not tagged.
 
 Update `package.json`, the macOS Cargo manifest and lockfile, and the macOS bundle version fields together with the product version. `npm test` and bundling reject version drift. The initial adoption PR validates the new version without requiring a previous package manifest. The source-only Release workflow creates no downloadable app or GitHub release. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 

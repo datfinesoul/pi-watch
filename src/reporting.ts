@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
-import { paneMetadata, projectLabel } from "./metadata.js";
+import { paneMetadata, projectLabel } from "./metadata.ts";
 
 // Retain at most 240 Unicode code points at each end, never the full response.
 export function responsePreview(content) {

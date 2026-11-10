@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-10
+
+### Fixed
+
+- Use TypeScript runtime helpers so `/reload` refreshes imported logic instead of retaining cached JavaScript helpers. Keep the companion app behavior and IPC protocol unchanged.
+
 ## [0.5.0] - 2026-11-03
 
 ### Added
@@ -58,7 +64,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Aligned extension, Cargo, lockfile, and bundle versions at `0.2.0` without changing IPC protocol 1 or current session-monitoring behavior.
 - Added native formatting, linting, tests, and bundle checks to full control-plane readiness on macOS.
 
-[Unreleased]: https://github.com/datfinesoul/pi-watch/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/datfinesoul/pi-watch/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/datfinesoul/pi-watch/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/datfinesoul/pi-watch/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/datfinesoul/pi-watch/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/datfinesoul/pi-watch/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/datfinesoul/pi-watch/releases/tag/v0.2.0
