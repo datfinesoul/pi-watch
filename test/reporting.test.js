@@ -174,7 +174,7 @@ test("widget distinguishes input and completion, reads older files, and cycles i
   f.other(); // Older extension file: no waiting field.
   const waitingPath = f.other({ pid: 44, pane: "888", pending: false, waiting: true });
   f.emit("before_agent_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 needs input elsewhere · 1 done elsewhere — ctrl+' switch"]);
+  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 input · 1 done  [ctrl+' switch]"]);
   for (const [key, pane] of [["\x1b[39;5u", "888"], ["\x07", "777"], ["\x1b[39;6u", "888"], ["\x1b[27;5;39~", "777"]]) {
     assert.deepEqual(f.press(key), { consume: true });
     assert.deepEqual(f.calls.at(-1), ["kitty", ["@", "--to", "unix:/tmp/kitty-test.sock", "focus-window", "--match", `id:${pane}`]]);
@@ -183,7 +183,7 @@ test("widget distinguishes input and completion, reads older files, and cycles i
   assert.equal(JSON.parse(readFileSync(waitingPath)).waiting, true, "navigation never changes another session's file");
   rmSync(waitingPath);
   f.emit("before_agent_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 done elsewhere — ctrl+' switch"]);
+  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 done  [ctrl+' switch]"]);
 });
 
 test("multiple input requests use a separate count without double counting completions", async t => {
@@ -192,7 +192,7 @@ test("multiple input requests use a separate count without double counting compl
   f.other({ waiting: true });
   f.other({ pane: "888", pid: 44, pending: false, waiting: true });
   f.emit("ui_prompt_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 2 need input elsewhere — ctrl+' switch"]);
+  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 2 input  [ctrl+' switch]"]);
 });
 
 test("heartbeat discovers requests and removes resolved requests without another agent event", async t => {

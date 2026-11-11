@@ -97,9 +97,9 @@ export function registerReporting(pi, {
     const inputCount = others.filter(other => other.waiting).length;
     const doneCount = others.length - inputCount;
     const parts = [];
-    if (inputCount) parts.push(`${inputCount} ${inputCount === 1 ? "needs" : "need"} input elsewhere`);
-    if (doneCount) parts.push(`${doneCount} done elsewhere`);
-    try { ui?.setWidget("pi-watch", parts.length ? [`◇ ${parts.join(" · ")} — ctrl+' switch`] : undefined); } catch { /* No usable UI. */ }
+    if (inputCount) parts.push(`${inputCount} input`);
+    if (doneCount) parts.push(`${doneCount} done`);
+    try { ui?.setWidget("pi-watch", parts.length ? [`◇ ${parts.join(" · ")}  [ctrl+' switch]`] : undefined); } catch { /* No usable UI. */ }
   }
   async function heartbeat() {
     const instance = id;

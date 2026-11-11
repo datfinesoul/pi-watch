@@ -61,7 +61,7 @@ Load Pi Watch in each Pi session you want to monitor. Use macOS or Linux with Ki
 A small line appears above the editor when other sessions need attention:
 
 ```text
-◇ 1 needs input elsewhere · 2 done elsewhere — ctrl+' switch
+◇ 1 input · 2 done  [ctrl+' switch]
 ```
 
 The widget disappears when no other session needs attention. It does not take focus, open dialogs, or issue desktop notifications.

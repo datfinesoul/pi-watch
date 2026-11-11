@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Show blocking extension dialogs as input requests through Pi's native `ui_prompt_start` and `ui_prompt_end` events. This includes `pi-questions` without tool-specific integration.
-- Show separate input and completion counts in the in-terminal widget. Prioritize input requests when cycling Kitty panes.
+- Show compact input and completion counts with a bracketed shortcut hint, such as `◇ 1 input · 2 done  [ctrl+' switch]`. Prioritize input requests when cycling Kitty panes.
 - Test native prompt-event spans through installed Pi, including overlapping dialogs and failure cleanup.
 
 ### Changed
