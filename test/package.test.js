@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
-import { root } from "../scripts/check-versions.mjs";
+const root = resolve(import.meta.dirname, "..");
 
 function packageFiles() {
   const result = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8" });
@@ -22,7 +22,7 @@ test("the extension package contains its helpers but no native code, output, or 
 });
 
 const entry = process.env.PI_CODING_AGENT_ENTRY;
-test("installed Pi loads the packaged entry point without opening sockets or starting the app", { skip: !entry }, async t => {
+test("installed Pi loads the packaged entry point without starting background resources", { skip: !entry }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "pi-watch-package-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   for (const file of packageFiles()) {
@@ -36,7 +36,7 @@ test("installed Pi loads the packaged entry point without opening sockets or sta
   assert.equal(loaded.extensions.length, 1);
   const extension = loaded.extensions[0];
   assert.deepEqual([...extension.handlers.keys()].sort(), [
-    "session_start", "before_agent_start", "agent_start", "message_end", "agent_settled", "session_shutdown",
+    "session_start", "before_agent_start", "agent_start", "agent_settled", "ui_prompt_start", "ui_prompt_end", "session_shutdown",
   ].sort());
   assert.equal(extension.commands.size, 0);
   assert.equal(extension.tools.size, 0);

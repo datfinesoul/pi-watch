@@ -4,7 +4,7 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { root } from "../scripts/check-versions.mjs";
+const root = join(import.meta.dirname, "..");
 
 // Exercise the actual CI gate without creating Git history or invoking GitHub Actions.
 const workflow = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
@@ -21,10 +21,10 @@ function runGate(t, base, head = "0.2.0", changelog = "## [0.2.0] - 2026-10-28\n
   });
 }
 
-test("the adoption gate permits a first manifest with a valid version and dated changelog section", t => {
+test("the baseline gate requires an existing valid base version", t => {
   const result = runGate(t, {});
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /initial package adoption/);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /Base version.*not valid SemVer/);
 });
 
 test("later CI runs require a real version increase", t => {
@@ -36,7 +36,7 @@ test("later CI runs require a real version increase", t => {
   }
 });
 
-test("adoption still rejects an invalid version or missing changelog heading", t => {
-  assert.equal(runGate(t, {}, "invalid").status, 1);
-  assert.equal(runGate(t, {}, "0.2.0", "## [Unreleased]\n").status, 1);
+test("the gate rejects an invalid version or missing changelog heading", t => {
+  assert.equal(runGate(t, { version: "0.1.0" }, "invalid").status, 1);
+  assert.equal(runGate(t, { version: "0.1.0" }, "0.2.0", "## [Unreleased]\n").status, 1);
 });
