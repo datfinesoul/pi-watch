@@ -18,17 +18,17 @@ body:
     id: reproduction
     attributes:
       label: Reproduction steps
-      description: Include the app build, reporting-extension setup, session status, and Kitty navigation steps that reproduce the issue. Do not include transcripts, credentials, private paths, or control socket endpoints.
+      description: Include the Pi Watch setup, open dialogs or completion state, and Kitty navigation steps. Do not include transcripts, credentials, private paths, or control socket endpoints.
       placeholder: |
-        1. Build and start the app with ...
-        2. Load reporting in Pi with ...
-        3. Observe the status or select a pane ...
+        1. Load Pi Watch in two Pi sessions ...
+        2. Complete a run or open a question ...
+        3. Observe the widget or press Ctrl+' ...
     validations:
       required: true
   - type: input
     id: package-version
     attributes:
-      label: pi-watch extension and app versions or commits
+      label: pi-watch version or commit
     validations:
       required: true
   - type: input

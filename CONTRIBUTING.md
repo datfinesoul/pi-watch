@@ -14,8 +14,8 @@ Thank you for contributing to pi-watch.
 Requirements:
 
 - Node.js 22.19 or newer, matching Pi's minimum supported version
-- Pi 1.4.0 or newer for extension smoke testing
-- macOS, Rust 1.99.0+ with rustfmt and Clippy, and Apple command-line build tools for native changes
+- Pi 1.5.2 or newer for extension smoke testing
+- Kitty on macOS or Linux for pane navigation checks
 
 Clone the repository and run the tests:
 
@@ -25,13 +25,13 @@ cd pi-watch
 npm test   # or: pnpm test
 ```
 
-The extension needs no dependency installation or build step. The app has separate locked Cargo dependencies under `apps/macos/`. To load the working tree without enabling other extensions, run:
+The extension needs no dependency installation or build step. To load the working tree without enabling other extensions, run:
 
 ```sh
 pi --no-extensions --extension ./extensions/watch/index.ts
 ```
 
-On macOS, run `npm run check:app` for native formatting, linting, tests, and bundle creation. It does not start the app. Use `make restart` only when you want to rebuild and restart the checkout app. See the README's [manual desktop checks](README.md#manual-desktop-checks) after UI or navigation changes.
+See the README's [manual Pi checks](README.md#manual-pi-checks) after UI or navigation changes. Set `PI_CODING_AGENT_ENTRY` to an installed Pi `dist/index.js` for loader and UI-event integration tests.
 
 ## Making changes
 
@@ -40,8 +40,8 @@ On macOS, run `npm run check:app` for native formatting, linting, tests, and bun
 3. Keep the extension dependency-free unless a dependency provides clear value that cannot reasonably be implemented with the Node.js standard library.
 4. Update the README and changelog when user-visible behavior changes.
 5. Run `npm test` and `npm run pack:check`, or the `pnpm` equivalents.
-6. Run `npm run check:app` on the matching host and report any unrun manual desktop checks.
-7. Keep the product version consistent in `package.json`, the macOS Cargo manifest and lockfile, and the macOS bundle version fields. Keep IPC protocol versions independent.
+6. Report any manual Pi checks that you did not run.
+7. Keep runtime-state protocol versions independent of the package version.
 
 ## Pull requests
 

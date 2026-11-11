@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-11
+
+### Added
+
+- Show blocking extension dialogs as input requests through Pi's native `ui_prompt_start` and `ui_prompt_end` events. This includes `pi-questions` without tool-specific integration.
+- Show compact input and completion counts with a bracketed shortcut hint, such as `◇ 1 input · 2 done  [ctrl+' switch]`. Prioritize input requests when cycling Kitty panes.
+- Test native prompt-event spans through installed Pi, including overlapping dialogs and failure cleanup.
+
+### Changed
+
+- Keep input waiting independent of agent activity and completion acknowledgment. Visiting a pane does not clear an open question.
+- Require Pi 1.5.2 or newer. Keep older completion-state files readable and add an optional `waiting` flag.
+- Replace runtime-state files atomically and remove input handlers during shutdown or session replacement.
+- Use the extension-only module profile and Node CI. Keep completion alerts and the local Ctrl+' shortcut on macOS and Linux.
+
+### Removed
+
+- Remove the native macOS app, Rust sources, app build scripts, native checks, and menu bar shortcut.
+- Remove app IPC, assistant-response previews, Git project labels, and pane-title collection. Existing installed apps and build output require manual removal.
+
 ## [0.5.1] - 2026-11-10
 
 ### Fixed
@@ -64,7 +84,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Aligned extension, Cargo, lockfile, and bundle versions at `0.2.0` without changing IPC protocol 1 or current session-monitoring behavior.
 - Added native formatting, linting, tests, and bundle checks to full control-plane readiness on macOS.
 
-[Unreleased]: https://github.com/datfinesoul/pi-watch/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/datfinesoul/pi-watch/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/datfinesoul/pi-watch/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/datfinesoul/pi-watch/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/datfinesoul/pi-watch/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/datfinesoul/pi-watch/compare/v0.3.0...v0.4.0
