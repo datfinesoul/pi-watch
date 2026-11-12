@@ -85,77 +85,36 @@ Before you enable Kitty remote control:
 - Keep the socket inaccessible to environments that execute untrusted code. Removing `KITTY_LISTEN_ON` alone does not block socket access.
 - Restrict Kitty authorization to `ls` and `focus-window` where supported. Confirm compatibility with your Kitty version and Pi Watch before you rely on this restriction.
 
-<details>
-<summary>Tested restricted Kitty setup and verification</summary>
+**Restricted Kitty setup**
 
-Manual testing on macOS with Kitty 0.43.1 confirmed the allowed commands, denial of `get-colors`, and Pi Watch navigation. Test your own version before you rely on these restrictions.
+Manual testing on macOS with Kitty 0.43.1 confirmed this authorization rule and Pi Watch navigation. Follow the [security checks](https://github.com/datfinesoul/pi-watch/blob/main/docs/kitty-security-checks.md) before you rely on your setup.
 
-Use these settings in a dedicated Kitty configuration:
+1. Create a private socket directory:
 
-```conf
-allow_remote_control password
-remote_control_password "" ls focus-window
-```
+   ```sh
+   mkdir -p -m 700 "$HOME/.local/state/pi-watch/kitty"
+   ls -ld "$HOME/.local/state/pi-watch/kitty"
+   ```
+
+   Confirm that you own the directory and its permissions are `drwx------`. The command does not change permissions if the directory already exists. Correct unexpected ownership or permissions before you continue.
+
+2. Add these settings to the Kitty configuration you use for Pi:
+
+   ```conf
+   allow_remote_control password
+   remote_control_password "" ls focus-window
+   listen_on unix:~/.local/state/pi-watch/kitty/control.sock
+   ```
+
+   Replace conflicting settings rather than adding an unrestricted alternative. Kitty appends its process ID to the configured socket path. Pi Watch uses the resulting inherited `KITTY_LISTEN_ON` endpoint.
+
+3. Start a new Kitty instance with this configuration. A configuration reload does not apply the listener change. Load Pi Watch in each participating Pi session.
 
 The empty password permits only `ls` and `focus-window` without credentials. You do not enter a password for polling or navigation. Any process that can reach the endpoint can use these commands. The rule restricts actions, not caller identity. The `ls` command can return pane metadata. The `focus-window` command can change the focused pane.
 
 Do not use `allow_remote_control yes`, `socket`, or `socket-only` with this allowlist. Those modes accept socket commands unconditionally. Other passwords, prior approvals, or per-window grants can provide broader access. Review these access paths separately. See Kitty's [authorization settings](https://sw.kovidgoyal.net/kitty/conf/#opt-kitty.remote_control_password) and [remote-control permissions](https://sw.kovidgoyal.net/kitty/remote-control/#fine-grained-permissions-for-remote-control).
 
-Test in a separate instance before you change your normal setup. The instance runs under your account, not in a security sandbox.
-
-1. In your existing shell, create a temporary private directory:
-
-   ```sh
-   test_dir="$(mktemp -d /tmp/pi-watch-kitty.XXXXXX)"
-   chmod 700 "$test_dir"
-   ls -ld "$test_dir"
-   ```
-
-   Confirm that you own the directory and its permissions are `drwx------`.
-
-2. Start a separate Kitty process without your normal configuration:
-
-   ```sh
-   kitty --config NONE \
-     --listen-on "unix:$test_dir/control.sock" \
-     -o 'allow_remote_control=password' \
-     -o 'remote_control_password="" ls focus-window' &
-   ```
-
-   If `kitty` is not on `PATH`, use its absolute executable path. On macOS, the usual path is `/Applications/kitty.app/Contents/MacOS/kitty`.
-
-3. Inside the new window, check the permitted commands:
-
-   ```sh
-   kitty @ --to "$KITTY_LISTEN_ON" --use-password never \
-     ls --match "id:$KITTY_WINDOW_ID"
-   kitty @ --to "$KITTY_LISTEN_ON" --use-password never \
-     focus-window --match "id:$KITTY_WINDOW_ID"
-   ```
-
-   Both commands must succeed without a prompt. The first returns pane metadata. Do not share that output without review. The second focuses the current pane, so no visible change is necessary. `--use-password never` prevents these checks from using an existing password source.
-
-4. In the same window, check a harmless read-only command that the rule must deny:
-
-   ```sh
-   kitty @ --to "$KITTY_LISTEN_ON" --use-password never get-colors
-   printf 'Exit status: %s\n' "$?"
-   ```
-
-   Expect an authorization error and a nonzero exit status. Stop if the command succeeds or requests approval.
-
-5. Open a second pane in the test instance. Load Pi Watch in Pi sessions in both panes. Confirm that completion markers appear and Ctrl+' switches panes. This checks Pi Watch's normal invocation, which lets Kitty's CLI use its default password sources.
-
-6. Close the test instance manually. In the original shell, remove the temporary directory:
-
-   ```sh
-   rm -r -- "$test_dir"
-   unset test_dir
-   ```
-
-Keep the socket in a private `0700` directory when you apply the tested settings to your normal setup. Verify the restrictions again after any Kitty configuration change. Removing Pi Watch does not disable Kitty remote control.
-
-</details>
+Verify the restrictions again after any Kitty configuration change. Removing Pi Watch does not disable Kitty remote control.
 
 To remove the extension, use the installed source, with `--local` for a project installation:
 
