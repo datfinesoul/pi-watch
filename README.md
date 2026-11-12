@@ -71,7 +71,91 @@ The widget disappears when no other session needs attention. It does not take fo
 
 A pane already focused when its run ends remains pending until you leave and return. Visits between polls can be missed. Other sessions refresh their widgets on the next heartbeat, normally within five seconds.
 
-Configure Kitty remote control outside Pi. Use a private Unix socket in a user-owned directory with mode `0700`. Pi Watch uses the inherited endpoint and never changes Kitty configuration. All participating sessions should run within the same Kitty instance. Navigation uses the current session's socket, so a pane in a different Kitty instance is not a supported target.
+> [!WARNING]
+> Kitty remote control can grant more access than pane navigation requires. Depending on Kitty authorization, a connected process can inspect terminal contents or send input. A private socket directory blocks other users, but not processes under your account. Do not expose the socket to untrusted code or containers. See [SECURITY.md](SECURITY.md) for the security limits.
+
+Configure Kitty remote control outside Pi. Pi Watch uses the inherited endpoint and never changes Kitty configuration. All participating sessions should run within the same Kitty instance. Navigation uses the current session's socket, so a pane in a different Kitty instance is not a supported target.
+
+Before you enable Kitty remote control:
+
+- Use a Unix socket in a private, user-owned directory with mode `0700`.
+- Check the owner and permissions of existing directories. Pi Watch does not check or repair socket directory permissions.
+- Do not configure a TCP listener for Pi Watch. Pi Watch accepts only Unix endpoints, but cannot prevent Kitty from exposing other endpoints.
+- Do not mount the socket or its directory into untrusted containers.
+- Keep the socket inaccessible to environments that execute untrusted code. Removing `KITTY_LISTEN_ON` alone does not block socket access.
+- Restrict Kitty authorization to `ls` and `focus-window` where supported. Confirm compatibility with your Kitty version and Pi Watch before you rely on this restriction.
+
+<details>
+<summary>Tested restricted Kitty setup and verification</summary>
+
+Manual testing on macOS with Kitty 0.43.1 confirmed the allowed commands, denial of `get-colors`, and Pi Watch navigation. Test your own version before you rely on these restrictions.
+
+Use these settings in a dedicated Kitty configuration:
+
+```conf
+allow_remote_control password
+remote_control_password "" ls focus-window
+```
+
+The empty password permits only `ls` and `focus-window` without credentials. You do not enter a password for polling or navigation. Any process that can reach the endpoint can use these commands. The rule restricts actions, not caller identity. The `ls` command can return pane metadata. The `focus-window` command can change the focused pane.
+
+Do not use `allow_remote_control yes`, `socket`, or `socket-only` with this allowlist. Those modes accept socket commands unconditionally. Other passwords, prior approvals, or per-window grants can provide broader access. Review these access paths separately. See Kitty's [authorization settings](https://sw.kovidgoyal.net/kitty/conf/#opt-kitty.remote_control_password) and [remote-control permissions](https://sw.kovidgoyal.net/kitty/remote-control/#fine-grained-permissions-for-remote-control).
+
+Test in a separate instance before you change your normal setup. The instance runs under your account, not in a security sandbox.
+
+1. In your existing shell, create a temporary private directory:
+
+   ```sh
+   test_dir="$(mktemp -d /tmp/pi-watch-kitty.XXXXXX)"
+   chmod 700 "$test_dir"
+   ls -ld "$test_dir"
+   ```
+
+   Confirm that you own the directory and its permissions are `drwx------`.
+
+2. Start a separate Kitty process without your normal configuration:
+
+   ```sh
+   kitty --config NONE \
+     --listen-on "unix:$test_dir/control.sock" \
+     -o 'allow_remote_control=password' \
+     -o 'remote_control_password="" ls focus-window' &
+   ```
+
+   If `kitty` is not on `PATH`, use its absolute executable path. On macOS, the usual path is `/Applications/kitty.app/Contents/MacOS/kitty`.
+
+3. Inside the new window, check the permitted commands:
+
+   ```sh
+   kitty @ --to "$KITTY_LISTEN_ON" --use-password never \
+     ls --match "id:$KITTY_WINDOW_ID"
+   kitty @ --to "$KITTY_LISTEN_ON" --use-password never \
+     focus-window --match "id:$KITTY_WINDOW_ID"
+   ```
+
+   Both commands must succeed without a prompt. The first returns pane metadata. Do not share that output without review. The second focuses the current pane, so no visible change is necessary. `--use-password never` prevents these checks from using an existing password source.
+
+4. In the same window, check a harmless read-only command that the rule must deny:
+
+   ```sh
+   kitty @ --to "$KITTY_LISTEN_ON" --use-password never get-colors
+   printf 'Exit status: %s\n' "$?"
+   ```
+
+   Expect an authorization error and a nonzero exit status. Stop if the command succeeds or requests approval.
+
+5. Open a second pane in the test instance. Load Pi Watch in Pi sessions in both panes. Confirm that completion markers appear and Ctrl+' switches panes. This checks Pi Watch's normal invocation, which lets Kitty's CLI use its default password sources.
+
+6. Close the test instance manually. In the original shell, remove the temporary directory:
+
+   ```sh
+   rm -r -- "$test_dir"
+   unset test_dir
+   ```
+
+Keep the socket in a private `0700` directory when you apply the tested settings to your normal setup. Verify the restrictions again after any Kitty configuration change. Removing Pi Watch does not disable Kitty remote control.
+
+</details>
 
 To remove the extension, use the installed source, with `--local` for a project installation:
 
