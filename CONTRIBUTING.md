@@ -39,9 +39,12 @@ See the README's [manual Pi checks](README.md#manual-pi-checks) after UI or navi
 2. Add or update tests for behavior changes.
 3. Keep the extension dependency-free unless a dependency provides clear value that cannot reasonably be implemented with the Node.js standard library.
 4. Update the README and changelog when user-visible behavior changes.
-5. Run `npm test` and `npm run pack:check`, or the `pnpm` equivalents.
-6. Report any manual Pi checks that you did not run.
-7. Keep runtime-state protocol versions independent of the package version.
+5. Set the version once per branch that triggers CI. Keep the version unchanged for the whole branch. Record later user-visible changes under the same `## [<version>] - <date>` heading. Do not increment the patch version for each edit, fix, or conversation turn.
+6. Run `npm test` and `npm run pack:check`, or the `pnpm` equivalents.
+7. Report any manual Pi checks that you did not run.
+8. Keep runtime-state protocol versions independent of the package version.
+
+CI requires a version above the base version, with exactly one matching versioned changelog heading above it. Pull requests that change only Markdown skipped by CI are exempt. After merge and a successful CI run, the Release workflow tags the tested commit `v<version>`. A merge that does not change the version is not tagged.
 
 ## Pull requests
 

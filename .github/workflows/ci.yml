@@ -99,5 +99,19 @@ jobs:
             console.log(`::error file=CHANGELOG.md::CHANGELOG.md has no '## [${head}] - <date>' section.`);
             process.exit(1);
           }
+          // One version per branch: exactly one versioned heading above base, matching package.json.
+          const headingPattern = /^## \[([^\]]+)\] - /gm;
+          const changelogText = readFileSync("CHANGELOG.md", "utf8");
+          const baseVersion = parse("Base", base);
+          const aboveBase = [];
+          let headingMatch;
+          while ((headingMatch = headingPattern.exec(changelogText)) !== null) {
+            if (!pattern.test(headingMatch[1])) continue;
+            if (compare(parse("Changelog", headingMatch[1]), baseVersion) > 0) aboveBase.push(headingMatch[1]);
+          }
+          if (aboveBase.length !== 1 || aboveBase[0] !== head) {
+            console.log(`::error file=CHANGELOG.md::CHANGELOG.md must have exactly one versioned heading above ${base} and it must equal the package.json version '${head}' (found ${aboveBase.length}: ${aboveBase.join(", ") || "none"}).`);
+            process.exit(1);
+          }
           console.log(`Version ${base} -> ${head}.`);
           SCRIPT

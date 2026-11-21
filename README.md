@@ -180,8 +180,6 @@ Use two Pi sessions in the same Kitty instance:
 - [ ] Visiting a completed pane clears completion. Visiting a question leaves input waiting active.
 - [ ] Reload and exit remove old markers and input handlers.
 
-Each feature branch that triggers CI gets one version update relative to its base. Keep that version unchanged throughout the branch. Record subsequent user-visible changes under the same matching `## [<version>] - <date>` changelog heading. Do not increment the patch version for each edit, fix, or conversation turn. CI requires the branch version to exceed its base version. Pull requests that change only Markdown skipped by CI are exempt. After merge and successful CI, the Release workflow tags the tested commit `v<version>`. Merges that do not change the version are not tagged.
-
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## License
