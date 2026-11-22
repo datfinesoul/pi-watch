@@ -12,7 +12,7 @@ Include a description of the issue, affected versions, reproduction steps, poten
 
 ## Security model
 
-Pi extensions execute with the same operating-system permissions as Pi. Review extension source before installation and protect the package files from untrusted modification. Pi Watch shares only a protocol version, process ID, completion flag, input-waiting flag, and Kitty pane ID. It does not inspect prompts, transcripts, questions, answers, tool arguments, credentials, or model responses. It reads no user configuration files.
+Pi extensions execute with the same operating-system permissions as Pi. Review extension source before installation and protect the package files from untrusted modification. Pi Watch shares only a protocol version, process ID, completion flag, input-waiting flag, focus-check flag, and Kitty pane ID. It does not inspect prompts, transcripts, questions, answers, tool arguments, credentials, or model responses. It reads no user configuration files.
 
 Runtime state lives under `$XDG_STATE_HOME/pi-watch/sessions/`, or `~/.local/state/pi-watch/sessions/` by default. The extension creates the directory with mode `0700` and files with mode `0600`. Keep that directory private. Existing directory permissions remain unchanged. The extension removes its file on shutdown and removes dead-process records when reading other sessions. Abrupt exits can leave files until another reader removes them. PID reuse can delay this cleanup.
 

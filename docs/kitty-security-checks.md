@@ -49,7 +49,7 @@ Test in a separate instance before you change your normal setup. The instance ru
 
    Expect an authorization error and a nonzero exit status. Stop if the command succeeds or requests approval.
 
-5. Open a second pane in the test instance. Load Pi Watch in Pi sessions in both panes. Confirm that completion markers appear and Ctrl+' switches panes. This checks Pi Watch's normal invocation, which lets Kitty's CLI use its default password sources.
+5. Open a second pane in the test instance. Load Pi Watch in Pi sessions in both panes. Confirm that completion markers appear and Ctrl+\` switches panes. Ctrl+' still works. This checks Pi Watch's normal invocation, which lets Kitty's CLI use its default password sources.
 
 6. Close the test instance manually. In the original shell, remove the temporary directory:
 

@@ -1,7 +1,7 @@
 {
   "name": "@datfinesoul/pi-watch",
   "version": "0.7.0",
-  "description": "A Pi extension for cross-session completion and input-waiting notifications across Kitty panes.",
+  "description": "A Pi extension for cross-session completion and input-waiting notifications across Kitty and external sessions.",
   "type": "module",
   "license": "MIT",
   "author": "Philip Hadviger <613305+datfinesoul@users.noreply.github.com>",
