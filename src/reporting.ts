@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { paneFocused } from "./metadata.ts";
+import { createWatchWidget } from "./widget.ts";
 
 const execute = promisify(execFile);
 async function command(file, args, cwd) {
@@ -96,10 +97,8 @@ export function registerReporting(pi, {
     if (rotation >= others.length) rotation = 0;
     const inputCount = others.filter(other => other.waiting).length;
     const doneCount = others.length - inputCount;
-    const parts = [];
-    if (inputCount) parts.push(`${inputCount} input`);
-    if (doneCount) parts.push(`${doneCount} done`);
-    try { ui?.setWidget("pi-watch", parts.length ? [`◇ ${parts.join(" · ")}  [ctrl+' switch]`] : undefined); } catch { /* No usable UI. */ }
+    const widget = (inputCount || doneCount) ? createWatchWidget(inputCount, doneCount) : undefined;
+    try { ui?.setWidget("pi-watch", widget); } catch { /* No usable UI. */ }
   }
   async function heartbeat() {
     const instance = id;

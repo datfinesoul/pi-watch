@@ -52,6 +52,16 @@ function fixture(t, options = {}) {
   };
 }
 
+// Widget factories capture counts at set time; render through an identity theme to read the line.
+const widgetLine = f => {
+  const widget = f.widgets.get("pi-watch");
+  assert.equal(typeof widget, "function", "widget is a component factory");
+  const component = widget({}, { fg: (_color, text) => text, bold: text => text });
+  const lines = component.render(80);
+  assert.deepEqual(lines.length, 1);
+  return lines[0];
+};
+
 const focusOutput = focused => JSON.stringify([{
   is_focused: true, tabs: [{ is_focused: true, windows: [{ id: 123, is_focused: focused, title: "private" }] }],
 }]);
@@ -174,7 +184,7 @@ test("widget distinguishes input and completion, reads older files, and cycles i
   f.other(); // Older extension file: no waiting field.
   const waitingPath = f.other({ pid: 44, pane: "888", pending: false, waiting: true });
   f.emit("before_agent_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 input · 1 done  [ctrl+' switch]"]);
+  assert.equal(widgetLine(f), "◉ watch  ⏳ 1 input · ✓ 1 done   ctrl+' visit");
   for (const [key, pane] of [["\x1b[39;5u", "888"], ["\x07", "777"], ["\x1b[39;6u", "888"], ["\x1b[27;5;39~", "777"]]) {
     assert.deepEqual(f.press(key), { consume: true });
     assert.deepEqual(f.calls.at(-1), ["kitty", ["@", "--to", "unix:/tmp/kitty-test.sock", "focus-window", "--match", `id:${pane}`]]);
@@ -183,7 +193,7 @@ test("widget distinguishes input and completion, reads older files, and cycles i
   assert.equal(JSON.parse(readFileSync(waitingPath)).waiting, true, "navigation never changes another session's file");
   rmSync(waitingPath);
   f.emit("before_agent_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 done  [ctrl+' switch]"]);
+  assert.equal(widgetLine(f), "◉ watch  ✓ 1 done   ctrl+' visit");
 });
 
 test("multiple input requests use a separate count without double counting completions", async t => {
@@ -192,7 +202,7 @@ test("multiple input requests use a separate count without double counting compl
   f.other({ waiting: true });
   f.other({ pane: "888", pid: 44, pending: false, waiting: true });
   f.emit("ui_prompt_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 2 input  [ctrl+' switch]"]);
+  assert.equal(widgetLine(f), "◉ watch  ⏳ 2 input   ctrl+' visit");
 });
 
 test("heartbeat discovers requests and removes resolved requests without another agent event", async t => {

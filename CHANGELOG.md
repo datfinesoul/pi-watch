@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-22
+
+### Changed
+
+- Render the status widget as a theme-colored line with a bold label: `◉ watch  ⏳ 1 input · ✓ 2 done   ctrl+' visit`. Waiting counts use the accent color and done counts use the success color. The line renders dim when only completions remain.
+- Rename the widget hint from `[ctrl+' switch]` to `ctrl+' visit`.
+
 ## [0.6.0] - 2026-11-11
 
 ### Added
