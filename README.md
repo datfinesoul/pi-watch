@@ -61,10 +61,10 @@ Load Pi Watch in each Pi session you want to monitor. Use macOS or Linux with Ki
 A small line appears above the editor when other sessions need attention:
 
 ```text
-◉ watch  ⏳ 1 input · ✓ 2 done   ctrl+' visit
+◉ watch  ⏳ 1 input · ✓ 2 done  [ctrl+'] ───────────
 ```
 
-The widget disappears when no other session needs attention. It does not take focus, open dialogs, or issue desktop notifications. The line uses the active Pi theme colors: a waiting count renders in the accent color, and a done count renders in the success color. When only completions remain, the line renders dim.
+The widget disappears when no other session needs attention. It does not take focus, open dialogs, or issue desktop notifications. The line uses the active Pi theme colors: a waiting count renders in the accent color, and a done count renders in the success color. When only completions remain, the line renders dim. A dim rule fills the remaining line width. On a narrow terminal, the line truncates to the available width.
 
 - **Needs input:** A blocking extension dialog remains open, including a question from `pi-questions`. Visiting that pane does not answer the question. The marker remains until the dialog closes.
 - **Done:** An agent run settled and nobody inspected it yet. This does not imply task success. A new run or a sampled focus change from unfocused to focused clears the marker.

@@ -13,6 +13,12 @@ export interface WatchComponent {
   invalidate(): void;
 }
 
+/** ANSI-aware width tools from the host, injected so tests stay dependency-free. */
+export interface WatchWidthTools {
+  truncate(text: string, width: number): string;
+  measure(text: string): number;
+}
+
 export type WatchWidgetFactory = (tui: unknown, theme: Theme) => WatchComponent;
 
 /** Adapter from the host theme to the narrow styling surface the renderer uses. */
@@ -33,7 +39,7 @@ export function renderWatchLine(style: WatchStyler | null, inputCount: number, d
   const input = waiting ? `⏳ ${inputCount} input` : "";
   const done = doneCount > 0 ? `✓ ${doneCount} done` : "";
   const body = waiting ? (done ? `${input} · ${done}` : input) : done;
-  const plain = `◉ watch  ${body}   ctrl+' visit`;
+  const plain = `◉ watch  ${body}  [ctrl+']`;
   if (!style) return plain;
   if (!waiting) return style.fg("dim", plain);
   const segments = [
@@ -42,17 +48,27 @@ export function renderWatchLine(style: WatchStyler | null, inputCount: number, d
     style.fg("accent", style.bold(input)),
     done ? style.fg("dim", " · ") : "",
     done ? style.fg("success", style.bold(done)) : "",
-    style.fg("dim", "   ctrl+' visit"),
+    style.fg("dim", "  [ctrl+']"),
   ];
   return segments.join("");
 }
 
-/** Widget factory for `ui.setWidget`: captures the counts and styles lazily per theme. */
-export function createWatchWidget(inputCount: number, doneCount: number): WatchWidgetFactory {
+/**
+ * Widget factory for `ui.setWidget`: captures the counts and styles lazily per theme.
+ * The render truncates to the terminal width with the host's `truncateToWidth` so a
+ * narrow pane cannot exceed the renderer's width limit, and fills the remaining
+ * width with a dim rule so the row reads as its own section.
+ */
+export function createWatchWidget(inputCount: number, doneCount: number, tools: WatchWidthTools): WatchWidgetFactory {
   return (_tui, theme) => {
-    const line = renderWatchLine(watchStyler(theme), inputCount, doneCount);
+    const style = watchStyler(theme);
+    const line = renderWatchLine(style, inputCount, doneCount);
     return {
-      render: () => [line],
+      render(width: number) {
+        const content = tools.truncate(line, width);
+        const rule = Math.max(0, width - tools.measure(content) - 1);
+        return [rule > 0 ? `${content} ${style.fg("dim", "─".repeat(rule))}` : content];
+      },
       invalidate() {},
     };
   };

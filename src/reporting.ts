@@ -27,7 +27,7 @@ export function stateDirectory(home, env = {}, platform = process.platform) {
 // Overrides are test seams, not user configuration.
 export function registerReporting(pi, {
   home = homedir(), env = process.env, pid = process.pid, platform = process.platform,
-  runCommand = command, heartbeatMs = 5000,
+  runCommand = command, heartbeatMs = 5000, truncate, measure,
   alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } },
 } = {}) {
   const dir = stateDirectory(home, env, platform);
@@ -97,7 +97,7 @@ export function registerReporting(pi, {
     if (rotation >= others.length) rotation = 0;
     const inputCount = others.filter(other => other.waiting).length;
     const doneCount = others.length - inputCount;
-    const widget = (inputCount || doneCount) ? createWatchWidget(inputCount, doneCount) : undefined;
+    const widget = (inputCount || doneCount) ? createWatchWidget(inputCount, doneCount, { truncate, measure }) : undefined;
     try { ui?.setWidget("pi-watch", widget); } catch { /* No usable UI. */ }
   }
   async function heartbeat() {

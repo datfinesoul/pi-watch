@@ -10,8 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Render the status widget as a theme-colored line with a bold label: `◉ watch  ⏳ 1 input · ✓ 2 done   ctrl+' visit`. Waiting counts use the accent color and done counts use the success color. The line renders dim when only completions remain.
-- Rename the widget hint from `[ctrl+' switch]` to `ctrl+' visit`.
+- Render the status widget as a theme-colored line with a bold label: `◉ watch  ⏳ 1 input · ✓ 2 done  [ctrl+'] ─────`. Waiting counts use the accent color and done counts use the success color. The line renders dim when only completions remain, and a dim rule fills the remaining width so the row reads as its own section.
+- Rename the widget hint from `[ctrl+' switch]` to `[ctrl+']`.
+
+### Fixed
+
+- Truncate the widget line to the terminal width with pi-tui's `truncateToWidth`. A narrow pane no longer exceeds the renderer's width limit.
 
 ## [0.6.0] - 2026-11-11
 
