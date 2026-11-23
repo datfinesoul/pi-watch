@@ -56,25 +56,29 @@ Use an absolute extension path outside the checkout. The control plane already l
 
 ## Usage
 
-Load Pi Watch in each Pi session you want to monitor. Use macOS or Linux with Kitty. Each session needs `KITTY_WINDOW_ID` and a Unix `KITTY_LISTEN_ON` endpoint for navigation.
+Load Pi Watch in each Pi session you want to monitor. Use macOS or Linux. Kitty is required only for the Kitty group and the shortcut. Each session needs `KITTY_WINDOW_ID` and a Unix `KITTY_LISTEN_ON` endpoint to join the Kitty group and use the shortcut.
 
 A small line appears above the editor when other sessions need attention:
 
 ```text
-◇ 1 input · 2 done  [ctrl+' switch]
+◉ watch : [ctrl+`] ⏳ 1 ✓ 1 [ext] ⏳ 2 ✓ 3 ───────────
 ```
 
-The widget disappears when no other session needs attention. It does not take focus, open dialogs, or issue desktop notifications.
+The widget counts other sessions only. Pi Watch adds a session to the Kitty group after a successful focus check. Sessions without one form the `[ext]` group. This includes sessions outside Kitty, Kitty sessions without an endpoint, and sessions whose focus query fails. `⏳` counts input requests and `✓` counts completions. Empty groups are omitted. The widget disappears when neither group has a count. It does not take focus, open dialogs, or issue desktop notifications.
+
+The leading `◉` is green when the Kitty group has a completion and orange when only the `[ext]` group has one. Green wins when both groups have completions. It is accent-colored when at least one group has input and neither group has a completion. The `⏳` counts render in the accent color. The Kitty `✓` count renders in the success color. The `[ext]` `✓` count renders in the warning color. The `[ext]` label is dim. A dim rule fills the remaining width. On a narrow terminal, the line truncates to the available width.
+
+The ``[ctrl+`]`` hint appears only when the Kitty group needs attention and this session can navigate. Ctrl+\` focuses the next Kitty pane that needs attention. Ctrl+' remains an alias. The hint disappears when the Kitty group is empty.
 
 - **Needs input:** A blocking extension dialog remains open, including a question from `pi-questions`. Visiting that pane does not answer the question. The marker remains until the dialog closes.
-- **Done:** An agent run settled and nobody inspected it yet. This does not imply task success. A new run or a sampled focus change from unfocused to focused clears the marker.
+- **Done:** An agent run settled and nobody inspected it yet. This does not imply task success. A Kitty completion clears on a new run or a sampled focus change. An ext completion clears on a new run or session exit.
 
-A pane already focused when its run ends remains pending until you leave and return. Visits between polls can be missed. Other sessions refresh their widgets on the next heartbeat, normally within five seconds.
+A focus-checked pane that is already focused when its run ends remains pending until you leave and return. Visits between polls can be missed. Other sessions refresh their widgets on the next heartbeat, normally within five seconds.
 
 > [!WARNING]
 > Kitty remote control can grant more access than pane navigation requires. Depending on Kitty authorization, a connected process can inspect terminal contents or send input. A private socket directory blocks other users, but not processes under your account. Do not expose the socket to untrusted code or containers. See [SECURITY.md](SECURITY.md) for the security limits.
 
-Configure Kitty remote control outside Pi. Pi Watch uses the inherited endpoint and never changes Kitty configuration. All participating sessions should run within the same Kitty instance. Navigation uses the current session's socket, so a pane in a different Kitty instance is not a supported target.
+Configure Kitty remote control outside Pi. Pi Watch uses the inherited endpoint and never changes Kitty configuration. All participating Kitty sessions should run within the same Kitty instance. Navigation uses the current session's socket, so a pane in a different Kitty instance is not a supported target.
 
 Before you enable Kitty remote control:
 
@@ -128,9 +132,9 @@ For local installations, substitute `/path/to/pi-watch`. Run `/reload` in affect
 
 ## Keyboard shortcut
 
-Press **Ctrl+'** inside a participating Pi session to focus the next pane that needs attention. Input requests precede unseen completions. Repeated presses cycle through all listed panes.
+Press **Ctrl+\`** inside a participating Pi session to focus the next Kitty pane that needs attention. Ctrl+' remains an alias. Input requests precede unseen completions. Repeated presses cycle through all listed Kitty panes.
 
-The extension accepts legacy BEL and Kitty-protocol CSI forms. It consumes the shortcut only when navigation is available and another session needs attention. Ordinary keys pass through. The shortcut is local to Pi, not a global operating-system shortcut. Navigation failures leave markers unchanged.
+The extension accepts Ctrl+\` and Ctrl+'. It also accepts the legacy BEL and Kitty-protocol CSI forms of Ctrl+'. It consumes the shortcut only when this session can navigate and the Kitty group needs attention. Ext sessions do not appear in the cycle. Ordinary keys pass through. The shortcut is local to Pi, not a global operating-system shortcut. Navigation failures leave markers unchanged.
 
 ## How it works
 
@@ -146,9 +150,9 @@ Detection covers blocking extension selectors, confirmations, inputs, editors, a
 
 Each session writes one private JSON file under `$XDG_STATE_HOME/pi-watch/sessions/`, or `~/.local/state/pi-watch/sessions/` by default. These are runtime files, not user configuration. Pi Watch reads no configuration files.
 
-State contains only protocol version `1`, process ID, completion flag `pending`, input flag `waiting`, and Kitty pane ID `kitty_window_id`. The optional `waiting` field extends the existing completion format. Older files without it remain valid. Files use mode `0600` in a directory created with mode `0700`. Atomic replacement prevents partially written records.
+State contains only protocol version `1`, process ID, completion flag `pending`, input flag `waiting`, focus-check flag `focus_check`, and Kitty pane ID `kitty_window_id`. The optional `waiting` field extends the existing completion format. The optional `focus_check` field marks a session with a successful focus check. Older files without either field remain valid. A file without `focus_check` counts as ext. Files use mode `0600` in a directory created with mode `0700`. Atomic replacement prevents partially written records.
 
-A five-second heartbeat reads other sessions and samples the current pane's focus with a bounded `kitty ls` request. The extension retains only focus flags. It uses `kitty` from `PATH`, without a shell. Missing commands, invalid responses, and state-file failures do not stop Pi.
+A five-second heartbeat reads other sessions. When focus checking is available, it also samples the current pane's focus with a bounded `kitty ls` request. The extension retains only focus flags. It uses `kitty` from `PATH`, without a shell. Missing commands, invalid responses, and state-file failures do not stop Pi.
 
 A session removes its file and stops its timer and input handler on shutdown. Readers remove records whose processes are no longer alive. PID reuse can keep a stale record until that process exits. Reload and session replacement create a new runtime identity and remove the previous file.
 
@@ -171,13 +175,15 @@ Use `pnpm test` and `pnpm run pack:check` with pnpm. Tests cover lifecycle marke
 
 ### Manual Pi checks
 
-Use two Pi sessions in the same Kitty instance:
+Use two Pi sessions in the same Kitty instance. Add one session outside Kitty, or without `KITTY_LISTEN_ON`, for the `[ext]` checks:
 
-- [ ] A completed run appears as done in the other session.
-- [ ] An open `pi-questions` dialog appears as needs input in the other session.
-- [ ] Ctrl+' cycles through waiting and completed panes without submitting an answer.
+- [ ] A completed Kitty run appears green in the other session.
+- [ ] An open `pi-questions` dialog appears under the Kitty group.
+- [ ] Ctrl+\` cycles through waiting and completed Kitty panes without submitting an answer. Ctrl+' still works.
+- [ ] Sessions without a working focus check appear under `[ext]`. An ext-only completion turns the circle orange and hides the Ctrl+\` hint.
 - [ ] Answering or cancelling clears input waiting. A resumed run becomes done only after final settlement.
-- [ ] Visiting a completed pane clears completion. Visiting a question leaves input waiting active.
+- [ ] Visiting a completed Kitty pane clears completion. Visiting a question leaves input waiting active.
+- [ ] An ext completion clears on a new run or session exit, not on a visit.
 - [ ] Reload and exit remove old markers and input handlers.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.

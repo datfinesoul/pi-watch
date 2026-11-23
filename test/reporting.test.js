@@ -28,6 +28,10 @@ function fixture(t, options = {}) {
   const ctx = { cwd: "/tmp/project", hasUI: true, mode: "tui", ui, isIdle: () => true };
   registerReporting({ on: (name, handler) => handlers.set(name, handler) }, {
     home, env, pid: 42, platform: "darwin", alive: () => true,
+    // Simplified stand-ins for pi-tui's truncateToWidth and visibleWidth: the tested
+    // lines go through an identity theme, so code points match visible cells.
+    truncate: (text, width) => Array.from(text).slice(0, width).join(""),
+    measure: text => Array.from(text).length,
     runCommand: async (file, args) => { calls.push([file, args]); return ""; },
     ...options,
     // Merge environment overrides without discarding the isolated state directory.
@@ -42,15 +46,28 @@ function fixture(t, options = {}) {
     start: (idle = true) => emit("session_start", {}, { ...ctx, isIdle: () => idle }),
     own: () => JSON.parse(readFileSync(join(dir, ownFile()), "utf8")),
     ownPath: () => join(dir, ownFile()),
-    other: ({ pid = 43, pending = true, waiting, pane = "777", version = 1 } = {}) => {
+    other: ({ pid = 43, pending = true, waiting, pane = "777", version = 1, focusCheck = true, old = false } = {}) => {
       mkdirSync(dir, { recursive: true });
       const path = join(dir, `other-${pane}-${pid}.json`);
-      writeFileSync(path, JSON.stringify({ version, pid, pending, waiting, kitty_window_id: pane }));
+      const state = { version, pid, pending, waiting, focus_check: focusCheck, kitty_window_id: pane };
+      if (old) delete state.focus_check;
+      writeFileSync(path, JSON.stringify(state));
       return path;
     },
     press: data => [...keys][0]?.(data),
   };
 }
+
+// Widget factories capture counts at set time; render through an identity theme to read the line.
+// The trailing section rule is width padding, so the helper strips it back to the content.
+const widgetLine = f => {
+  const widget = f.widgets.get("pi-watch");
+  assert.equal(typeof widget, "function", "widget is a component factory");
+  const component = widget({}, { fg: (_color, text) => text, bold: text => text });
+  const lines = component.render(80);
+  assert.deepEqual(lines.length, 1);
+  return lines[0].split(" ─")[0];
+};
 
 const focusOutput = focused => JSON.stringify([{
   is_focused: true, tabs: [{ is_focused: true, windows: [{ id: 123, is_focused: focused, title: "private" }] }],
@@ -66,7 +83,7 @@ test("runtime state keeps the existing XDG location on macOS and Linux", () => {
 test("only final settlement marks completion and startup does not", async t => {
   const f = fixture(t);
   await f.start();
-  assert.deepEqual(f.own(), { version: 1, pid: 42, pending: false, waiting: false, kitty_window_id: "123" });
+  assert.deepEqual(f.own(), { version: 1, pid: 42, pending: false, waiting: false, focus_check: false, kitty_window_id: "123" });
   assert.equal(f.handlers.has("agent_end"), false);
   assert.equal(f.handlers.has("message_end"), false, "no response inspection");
   f.emit("agent_settled");
@@ -145,6 +162,7 @@ test("focus acknowledges completion but never an unanswered prompt", async t => 
   let focused = true;
   const f = fixture(t, { heartbeatMs: 10, runCommand: async () => focusOutput(focused) });
   await f.start();
+  assert.equal(f.own().focus_check, true);
   f.emit("agent_start");
   f.emit("agent_settled");
   await pause(40);
@@ -162,6 +180,7 @@ test("focus acknowledges completion but never an unanswered prompt", async t => 
 test("unknown focus does not acknowledge completion", async t => {
   const f = fixture(t, { heartbeatMs: 10 });
   await f.start();
+  assert.equal(f.own().focus_check, false);
   f.emit("agent_start");
   f.emit("agent_settled");
   await pause(40);
@@ -174,8 +193,15 @@ test("widget distinguishes input and completion, reads older files, and cycles i
   f.other(); // Older extension file: no waiting field.
   const waitingPath = f.other({ pid: 44, pane: "888", pending: false, waiting: true });
   f.emit("before_agent_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 input · 1 done  [ctrl+' switch]"]);
-  for (const [key, pane] of [["\x1b[39;5u", "888"], ["\x07", "777"], ["\x1b[39;6u", "888"], ["\x1b[27;5;39~", "777"]]) {
+  assert.equal(widgetLine(f), "◉ watch : [ctrl+`] ⏳ 1 ✓ 1");
+  for (const [key, pane] of [
+    ["\x1b[39;5u", "888"],
+    ["\x07", "777"],
+    ["\x1b[39;6u", "888"],
+    ["\x1b[27;5;39~", "777"],
+    ["\x1b[96;5u", "888"],
+    ["\x1b[27;5;96~", "777"],
+  ]) {
     assert.deepEqual(f.press(key), { consume: true });
     assert.deepEqual(f.calls.at(-1), ["kitty", ["@", "--to", "unix:/tmp/kitty-test.sock", "focus-window", "--match", `id:${pane}`]]);
   }
@@ -183,7 +209,7 @@ test("widget distinguishes input and completion, reads older files, and cycles i
   assert.equal(JSON.parse(readFileSync(waitingPath)).waiting, true, "navigation never changes another session's file");
   rmSync(waitingPath);
   f.emit("before_agent_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 1 done  [ctrl+' switch]"]);
+  assert.equal(widgetLine(f), "◉ watch : [ctrl+`] ✓ 1");
 });
 
 test("multiple input requests use a separate count without double counting completions", async t => {
@@ -192,7 +218,28 @@ test("multiple input requests use a separate count without double counting compl
   f.other({ waiting: true });
   f.other({ pane: "888", pid: 44, pending: false, waiting: true });
   f.emit("ui_prompt_start");
-  assert.deepEqual(f.widgets.get("pi-watch"), ["◇ 2 input  [ctrl+' switch]"]);
+  assert.equal(widgetLine(f), "◉ watch : [ctrl+`] ⏳ 2");
+});
+
+test("Kitty and ext groups stay separate", async t => {
+  const f = fixture(t);
+  await f.start();
+  f.other({ pending: true });
+  f.other({ pid: 44, pane: null, focusCheck: false, pending: false, waiting: true });
+  f.emit("before_agent_start");
+  assert.equal(widgetLine(f), "◉ watch : [ctrl+`] ✓ 1 [ext] ⏳ 1");
+});
+
+test("ext peers count without a shortcut, and older records count as ext", async t => {
+  const f = fixture(t);
+  await f.start();
+  f.other({ pane: null, focusCheck: false, pending: false, waiting: true });
+  f.other({ pid: 44, pane: "888", pending: true, old: true });
+  f.emit("before_agent_start");
+  assert.equal(widgetLine(f), "◉ watch : [ext] ⏳ 1 ✓ 1");
+  const calls = f.calls.length;
+  assert.equal(f.press("\x1b[96;5u"), undefined, "ext peers are not focus-checked");
+  assert.equal(f.calls.length, calls);
 });
 
 test("heartbeat discovers requests and removes resolved requests without another agent event", async t => {
@@ -228,20 +275,21 @@ test("Linux publishes the same minimal private state with no Git or app operatio
   f.emit("ui_prompt_start", { title: "secret", question: "secret" });
   assert.equal(statSync(f.dir).mode & 0o777, 0o700);
   assert.equal(statSync(f.ownPath()).mode & 0o777, 0o600);
-  assert.deepEqual(Object.keys(f.own()).sort(), ["version", "pid", "pending", "waiting", "kitty_window_id"].sort());
+  assert.deepEqual(Object.keys(f.own()).sort(), ["version", "pid", "pending", "waiting", "focus_check", "kitty_window_id"].sort());
   assert.ok(f.calls.every(([file, args]) => file === "kitty" && args.includes("ls")));
   assert.ok(readdirSync(f.dir).every(file => file.endsWith(".json")), "no temporary files remain");
 });
 
-test("without Kitty navigation the shortcut passes through and no commands run", async t => {
+test("without Kitty navigation the widget shows peers but the shortcut passes through", async t => {
   const f = fixture(t, { env: { KITTY_WINDOW_ID: undefined, KITTY_LISTEN_ON: undefined } });
   await f.start();
   f.other();
   f.emit("agent_start");
   f.emit("agent_settled");
   assert.equal(f.calls.length, 0);
-  assert.equal(f.widgets.size, 0);
+  assert.equal(widgetLine(f), "◉ watch : ✓ 1");
   assert.equal(f.press("\x07"), undefined);
+  assert.equal(f.press("\x1b[96;5u"), undefined);
   assert.equal(f.own().pending, true);
 });
 

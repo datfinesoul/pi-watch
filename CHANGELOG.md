@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-22
+
+### Changed
+
+- Render the status widget as two groups: focus-checked Kitty peers and `[ext]` peers. `⏳` counts input requests and `✓` counts completions. Empty groups are omitted. The widget counts other sessions only.
+- Use a green circle when the Kitty group has a completion and an orange circle when only the `[ext]` group has one. Green wins when both groups have completions. Input-only lines keep the accent circle.
+- Show peer counts without navigation. The ``[ctrl+`]`` hint and key handling require navigation capability and at least one Kitty peer.
+- Publish a `focus_check` state flag after a successful focus check. Older files without it count as ext, so a session without focus checking never appears as a green Kitty completion.
+- Change the shortcut hint to ``[ctrl+`]``. Ctrl+' remains an alias.
+- Clear an ext completion on a new run or session exit, not on a visit.
+
+### Fixed
+
+- Truncate the widget line to the terminal width with pi-tui's `truncateToWidth`. A narrow pane no longer exceeds the renderer's width limit.
+
 ## [0.6.0] - 2026-11-11
 
 ### Added

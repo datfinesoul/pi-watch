@@ -1,13 +1,14 @@
 # Pi Watch
 
-This project contains an extension-only Pi notifier for completion and input waiting across Kitty panes on macOS and Linux. Follow the control plane's extension-only module standard. Keep Pi wiring in `extensions/watch/index.ts`, extension logic in root `src/`, and Node tests in root `test/`. Do not restore the retired native app or app IPC.
+This project contains an extension-only Pi notifier for completion and input waiting across Kitty panes and external sessions on macOS and Linux. Follow the control plane's extension-only module standard. Keep Pi wiring in `extensions/watch/index.ts`, extension logic in root `src/`, and Node tests in root `test/`. Do not restore the retired native app or app IPC.
 
 ## Product direction
 
-- Show separate counts for input requests and unseen completions in an in-terminal widget. Keep Ctrl+' pane switching and prioritize input requests.
+- Show separate Kitty and ext counts for input requests and unseen completions in an in-terminal widget. Green means a focus-checked Kitty completion. Orange means an ext-only completion. Green wins when both groups have completions. Keep Ctrl+\` pane switching, keep Ctrl+' as an alias, and prioritize input requests.
+- Show peer counts without navigation. Gate only the shortcut hint and key handling on navigation capability.
 - Use `agent_settled` for final completion and native `ui_prompt_start` / `ui_prompt_end` events for input waiting. Do not infer status from transcripts, tool names, CPU usage, or file timestamps.
-- Keep agent activity, completion acknowledgment, and input waiting independent. Visiting a pane can acknowledge completion but must not clear an open dialog.
-- Share only protocol version, process ID, completion and input flags, and Kitty pane ID through private runtime files. Do not collect responses, transcripts, prompts, question text, answers, thinking, tool arguments, tool output, credentials, titles, or project paths.
+- Keep agent activity, completion acknowledgment, and input waiting independent. Visiting a focus-checked pane can acknowledge completion but must not clear an open dialog.
+- Share only protocol version, process ID, completion and input flags, focus-check flag, and Kitty pane ID through private runtime files. Do not collect responses, transcripts, prompts, question text, answers, thinking, tool arguments, tool output, credentials, titles, or project paths.
 - Retain the existing XDG runtime-state location. It is not a configuration layer. Do not add a background service, network listener, app IPC, or model calls.
 - Use the inherited Kitty Unix socket for fixed pane-navigation commands. Do not change Kitty configuration automatically. Cross-instance Kitty navigation is not supported.
 - Existing Pi processes must load the extension before accurate status is available. Do not install extensions globally without explicit user authorization.

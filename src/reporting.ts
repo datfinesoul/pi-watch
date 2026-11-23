@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { paneFocused } from "./metadata.ts";
+import { createWatchWidget } from "./widget.ts";
 
 const execute = promisify(execFile);
 async function command(file, args, cwd) {
@@ -14,6 +15,9 @@ async function command(file, args, cwd) {
     return stdout.trim();
   } catch { return ""; }
 }
+
+// Ctrl+' remains a legacy alias. Ctrl+` is the current hint.
+const NAVIGATION_INPUT = /^(?:\x07|\x1b\[27;5;39~|\x1b\[39;6u|\x1b\[39;5u|\x1b\[27;5;96~|\x1b\[96;5u|\x1b\[96;6u)$/;
 
 // Runtime state, not user configuration. Keep the existing location for upgrades.
 export function stateDirectory(home, env = {}, platform = process.platform) {
@@ -26,7 +30,7 @@ export function stateDirectory(home, env = {}, platform = process.platform) {
 // Overrides are test seams, not user configuration.
 export function registerReporting(pi, {
   home = homedir(), env = process.env, pid = process.pid, platform = process.platform,
-  runCommand = command, heartbeatMs = 5000,
+  runCommand = command, heartbeatMs = 5000, truncate, measure,
   alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } },
 } = {}) {
   const dir = stateDirectory(home, env, platform);
@@ -35,6 +39,7 @@ export function registerReporting(pi, {
   let working = false;
   let pending = false;
   let waiting = false;
+  let focusReady = false;
   let previousFocus = null;
   let ui = null;
   let unsubscribeKeys;
@@ -52,7 +57,7 @@ export function registerReporting(pi, {
     try {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
       // Atomic replacement prevents readers from seeing a partially written file.
-      writeFileSync(temporary, JSON.stringify({ version: 1, pid, pending, waiting, kitty_window_id: pane ?? null }), { mode: 0o600 });
+      writeFileSync(temporary, JSON.stringify({ version: 1, pid, pending, waiting, focus_check: focusReady, kitty_window_id: pane ?? null }), { mode: 0o600 });
       renameSync(temporary, path);
     } catch { /* Runtime state is best effort. */ }
     finally { try { rmSync(temporary, { force: true }); } catch { /* Best effort. */ } }
@@ -66,7 +71,7 @@ export function registerReporting(pi, {
       if (typeof unsubscribeKeys === "function") unsubscribeKeys();
       ui = ctx.ui;
       unsubscribeKeys = ui.onTerminalInput?.(data => {
-        if (!/^(\x07|\x1b\[27;5;39~|\x1b\[39;6u|\x1b\[39;5u)$/.test(data)) return;
+        if (!NAVIGATION_INPUT.test(data)) return;
         if (!id || !navigable || !others.length) return;
         const target = others[rotation % others.length];
         rotation = (rotation + 1) % others.length;
@@ -74,32 +79,50 @@ export function registerReporting(pi, {
         return { consume: true };
       });
     }
-    others = [];
-    if (dir && id && navigable) {
+    let peers = [];
+    if (dir && id) {
       try {
-        others = readdirSync(dir).sort().flatMap(file => {
+        peers = readdirSync(dir).sort().flatMap(file => {
           if (!file.endsWith(".json") || file === `${id}.json`) return [];
           try {
             const state = JSON.parse(readFileSync(join(dir, file), "utf8"));
             if (state?.version !== 1 || !Number.isSafeInteger(state.pid) || state.pid <= 0) return [];
             if (!alive(state.pid)) { try { rmSync(join(dir, file)); } catch { /* Gone already. */ } return []; }
             if (state.pid === pid || (state.pending !== true && state.waiting !== true)) return [];
-            if (typeof state.kitty_window_id !== "string" || !/^\d+$/.test(state.kitty_window_id)) return [];
-            if (state.kitty_window_id === pane) return [];
-            return [{ pane: state.kitty_window_id, waiting: state.waiting === true }];
+            const paneId = state.kitty_window_id;
+            if (typeof pane === "string" && paneId === pane) return [];
+            if (paneId !== null && paneId !== undefined && (typeof paneId !== "string" || !/^\d+$/.test(paneId))) return [];
+            const kittyPeer = state.focus_check === true && typeof paneId === "string" && /^\d+$/.test(paneId);
+            return [{
+              pane: kittyPeer ? paneId : null,
+              pending: state.pending === true,
+              waiting: state.waiting === true,
+              kitty: kittyPeer,
+            }];
           } catch { return []; }
         });
       } catch { /* No shared state yet. */ }
     }
+    const kitty = peers.filter(peer => peer.kitty);
+    const ext = peers.filter(peer => !peer.kitty);
     // Input requests take priority, but repeated shortcut presses visit every pane.
-    others.sort((a, b) => Number(b.waiting) - Number(a.waiting));
+    kitty.sort((a, b) => Number(b.waiting) - Number(a.waiting));
+    others = kitty;
     if (rotation >= others.length) rotation = 0;
-    const inputCount = others.filter(other => other.waiting).length;
-    const doneCount = others.length - inputCount;
-    const parts = [];
-    if (inputCount) parts.push(`${inputCount} input`);
-    if (doneCount) parts.push(`${doneCount} done`);
-    try { ui?.setWidget("pi-watch", parts.length ? [`◇ ${parts.join(" · ")}  [ctrl+' switch]`] : undefined); } catch { /* No usable UI. */ }
+    const counts = group => ({
+      input: group.filter(peer => peer.waiting).length,
+      done: group.filter(peer => !peer.waiting && peer.pending).length,
+    });
+    const kittyCounts = counts(kitty);
+    const extCounts = counts(ext);
+    const total = kittyCounts.input + kittyCounts.done + extCounts.input + extCounts.done;
+    const summary = {
+      kitty: kittyCounts,
+      ext: extCounts,
+      showShortcut: navigable && kittyCounts.input + kittyCounts.done > 0,
+    };
+    const widget = total ? createWatchWidget(summary, { truncate, measure }) : undefined;
+    try { ui?.setWidget("pi-watch", widget); } catch { /* No usable UI. */ }
   }
   async function heartbeat() {
     const instance = id;
@@ -109,6 +132,11 @@ export function registerReporting(pi, {
     const output = await runCommand("kitty", ["@", "--to", endpoint, "ls", "--match", `id:${pane}`], cwd);
     if (instance !== id) return;
     const focused = paneFocused(output, pane);
+    const ready = typeof focused === "boolean";
+    if (ready !== focusReady) {
+      focusReady = ready;
+      publish();
+    }
     // A visit acknowledges completion, never an unanswered prompt.
     if (pending && previousFocus === false && focused === true) {
       pending = false;
@@ -128,6 +156,7 @@ export function registerReporting(pi, {
     unpublish();
     id = "";
     working = pending = waiting = false;
+    focusReady = false;
     previousFocus = null;
   }
   pi.on("session_start", async (_event, ctx) => {
